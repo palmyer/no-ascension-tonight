@@ -5,6 +5,13 @@ extends Node2D
 @onready var orb_count_label: Label = $UI/Control/OrbCountLabel
 @onready var xp_bar: ProgressBar = $UI/Control/XPBar
 @onready var stats_label: Label = $UI/Control/StatsLabel
+@onready var last_damage_label: Label = $UI/Control/LastDamageLabel
+
+func _ready():
+	EventBus.player_damaged.connect(_on_player_damaged)
+
+func _on_player_damaged(damage: float):
+	last_damage_label.text = "Last Damage: %.1f" % damage
 
 func _process(_delta: float):
 	update_ui()
@@ -43,8 +50,8 @@ func update_ui():
 	var cur = GameManager.current_stats
 	var base = GameManager.base_stats
 	
-	var line_top = "[CURRENT] HP:%d DMG:%d%% SPD:%d%% ARM:%d BUL:%d" % [
-		cur.max_health, cur.damage_pct, cur.move_speed, cur.armor, cur.bullet_count
+	var line_top = "[CURRENT] HP:%d DMG:%d%% SPD:%d%% REG:%d" % [
+		cur.max_health, cur.damage_pct, cur.move_speed, int(cur.hp_regen_5s)
 	]
 	
 	var line_mid = "[AURA] " + ("ACTIVE (DMG/ATK+20%%, SPD+15%%)" if GameManager.player_in_aura else "INACTIVE")

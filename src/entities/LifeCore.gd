@@ -34,19 +34,19 @@ func get_aura_radius_at_angle(angle: float) -> float:
 	# 归一化角度到 [0, TAU]
 	angle = fposmod(angle, TAU)
 	
-	# 定义四个顶点的方向 (GM 索引与方向映射)
-	# 0: RED -> Up (-PI/2)
-	# 1: GREEN -> Down (PI/2)
-	# 2: BLUE -> Right (0)
-	# 3: YELLOW -> Left (PI)
-	
-	# 我们按顺时针顺序排列: 0(Right:Blue), PI/2(Down:Green), PI(Left:Yellow), 3PI/2(Up:Red)
+	# 定义四个顶点的方向
+	# 0(Right:Blue), PI/2(Down:Green), PI(Left:Yellow), 3PI/2(Up:Red)
 	var cardinal_radii = [
-		base_aura_radius + GameManager.orb_counts[2] * radius_growth_per_orb, # Right
-		base_aura_radius + GameManager.orb_counts[1] * radius_growth_per_orb, # Down
-		base_aura_radius + GameManager.orb_counts[3] * radius_growth_per_orb, # Left
-		base_aura_radius + GameManager.orb_counts[0] * radius_growth_per_orb  # Up
+		base_aura_radius + GameManager.orb_counts[2] * radius_growth_per_orb, # Right (Blue)
+		base_aura_radius + GameManager.orb_counts[1] * radius_growth_per_orb, # Down (Green)
+		base_aura_radius + GameManager.orb_counts[3] * radius_growth_per_orb, # Left (Yellow)
+		base_aura_radius + GameManager.orb_counts[0] * radius_growth_per_orb  # Up (Red)
 	]
+	
+	# 检查斩首状态并提供超远半径（灵路）
+	# Up (RedCrack) 是索引 3
+	if GameManager.boss_states.get("RedCrack", false):
+		cardinal_radii[3] = 2000.0 # 延伸到边界
 	
 	var segment_idx = int(angle / (PI/2))
 	var t = (angle - segment_idx * (PI/2)) / (PI/2)

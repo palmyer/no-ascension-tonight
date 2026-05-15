@@ -1,0 +1,25 @@
+[gd_scene load_steps=5 format=3 uid="uid://sword_weapon_scene"]
+
+[ext_resource type="Script" path="res://src/weapons/melee/Sword.gd" id="1_sword"]
+[ext_resource type="Script" path="res://src/components/HitboxComponent.gd" id="2_hit"]
+[ext_resource type="Texture2D" path="res://assets/weapon_sword.png" id="3_sword_tex"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_sword"]
+size = Vector2(120, 18)
+
+[node name="Sword" type="Node2D"]
+script = ExtResource("1_sword")
+
+[node name="HitboxComponent" type="Area2D" parent="."]
+position = Vector2(82, 0)
+collision_layer = 8
+collision_mask = 4
+script = ExtResource("2_hit")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HitboxComponent"]
+shape = SubResource("RectangleShape2D_sword")
+
+[node name="Visual" type="Sprite2D" parent="."]
+position = Vector2(30, 0)
+scale = Vector2(0.24, 0.24)
+texture = ExtResource("3_sword_tex")

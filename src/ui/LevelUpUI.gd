@@ -10,6 +10,7 @@ var upgrades = [
 	{"name": "Armor+", "stat": "armor", "value": 2},
 	{"name": "Attack Speed+", "stat": "attack_speed", "value": 10},
 	{"name": "Bullet Count+", "stat": "bullet_count", "value": 1},
+	{"name": "HP Regen+", "stat": "hp_regen_5s", "value": 1.0},
 	{"name": "Attack Range+", "stat": "attack_range", "value": 100},
 	{"name": "Pickup Range+", "stat": "pickup_range", "value": 100}
 	]

@@ -17,3 +17,5 @@ func _on_area_entered(area: Area2D):
 		if health_component:
 			health_component.damage(hitbox.damage)
 		hit.emit(hitbox.damage)
+	else:
+		print("[DEBUG] Hurtbox (", name, ") entered by non-hitbox: ", area.name)

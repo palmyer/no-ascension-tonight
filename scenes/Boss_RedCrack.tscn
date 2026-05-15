@@ -1,0 +1,76 @@
+[gd_scene load_steps=6 format=3 uid="uid://boss_redcrack_scene"]
+
+[ext_resource type="Script" path="res://src/entities/Boss_RedCrack.gd" id="1_boss"]
+[ext_resource type="Script" path="res://src/components/HealthComponent.gd" id="2_hp"]
+[ext_resource type="Script" path="res://src/components/VelocityComponent.gd" id="3_vel"]
+[ext_resource type="Script" path="res://src/components/HurtboxComponent.gd" id="4_hurt"]
+[ext_resource type="Script" path="res://src/components/HitboxComponent.gd" id="5_hit"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_boss"]
+radius = 24.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_slash"]
+size = Vector2(300, 60)
+
+[node name="BossRedCrack" type="CharacterBody2D"]
+collision_layer = 4
+collision_mask = 5
+script = ExtResource("1_boss")
+
+[node name="Placeholder" type="ColorRect" parent="."]
+offset_left = -24.0
+offset_top = -24.0
+offset_right = 24.0
+offset_bottom = 24.0
+color = Color(0.8, 0, 0, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_boss")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("2_hp")
+max_health = 500.0
+
+[node name="ContactHitbox" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 2
+script = ExtResource("5_hit")
+damage = 10.0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ContactHitbox"]
+shape = SubResource("CircleShape2D_boss")
+
+[node name="VelocityComponent" type="Node" parent="."]
+script = ExtResource("3_vel")
+
+[node name="HurtboxComponent" type="Area2D" parent="." node_paths=PackedStringArray("health_component")]
+collision_layer = 4
+collision_mask = 8
+script = ExtResource("4_hurt")
+health_component = NodePath("../HealthComponent")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HurtboxComponent"]
+shape = SubResource("CircleShape2D_boss")
+
+[node name="WeaponPivot" type="Node2D" parent="."]
+
+[node name="HitboxComponent" type="Area2D" parent="WeaponPivot"]
+position = Vector2(150, 0)
+collision_layer = 16
+collision_mask = 2
+monitoring = false
+monitorable = false
+script = ExtResource("5_hit")
+damage = 20.0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="WeaponPivot/HitboxComponent"]
+shape = SubResource("RectangleShape2D_slash")
+
+[node name="SlashVisual" type="ColorRect" parent="WeaponPivot"]
+offset_left = 0.0
+offset_top = -30.0
+offset_right = 300.0
+offset_bottom = 30.0
+color = Color(1, 1, 1, 0.2)
+
+[connection signal="hit" from="HurtboxComponent" to="." method="_on_hurtbox_component_hit"]

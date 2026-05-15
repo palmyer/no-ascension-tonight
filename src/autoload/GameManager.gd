@@ -29,6 +29,7 @@ var base_stats = {
 	"move_speed": 0,
 	"armor": 0,
 	"bullet_count": 1,
+	"hp_regen_5s": 0.0,           # 5秒回复量
 	"attack_range": 600.0,        # 基础攻击范围
 	"pickup_range": 150.0        # 基础拾取范围
 }
@@ -39,9 +40,20 @@ var current_stats = {}
 # 光环状态
 var player_in_aura: bool = false
 
+# Boss 状态跟踪
+var boss_states = {
+	"RedCrack": false # true 表示已击败
+}
+
 func _ready():
 	EventBus.orb_collected.connect(_on_orb_collected)
+	EventBus.boss_defeated.connect(_on_boss_defeated)
 	update_current_stats()
+
+func _on_boss_defeated(boss_id: String):
+	if boss_states.has(boss_id):
+		boss_states[boss_id] = true
+		print("[DEBUG] GameManager: Boss %s defeated!" % boss_id)
 
 func _on_orb_collected(type: int):
 	orb_counts[type] += 1
@@ -68,6 +80,7 @@ func update_current_stats():
 		current_stats["damage_pct"] += 20
 		current_stats["attack_speed"] += 20
 		current_stats["move_speed"] += 15
+		current_stats["hp_regen_5s"] += 5.0 # 光环内5秒回5点
 
 func level_up():
 	player_level += 1
@@ -85,26 +98,35 @@ func apply_card_upgrade(stat_name: String, value: float):
 var attuned_type: int = -1 
 
 func get_weighted_drop_type() -> int:
-	if attuned_type == -1:
-		return randi() % 4
-	
-	var roll = randf()
-	if roll < 0.4:
-		return attuned_type
-	
-	# 剩下的 60% 由其他 3 种颜色均分 (每种 20%)
-	var others = []
+	# 排除已封死（斩首）的方向
+	var active_types = []
 	for i in range(4):
-		if i != attuned_type:
-			others.append(i)
+		var boss_id = ""
+		match i:
+			0: boss_id = "RedCrack"
+		
+		if boss_id == "" or not boss_states.get(boss_id, false):
+			active_types.append(i)
 	
-	var remaining_roll = (roll - 0.4) / 0.6
-	if remaining_roll < 0.33:
-		return others[0]
-	elif remaining_roll < 0.66:
-		return others[1]
-	else:
-		return others[2]
+	if active_types.size() == 0: return randi() % 4 # Fallback
+	
+	if attuned_type != -1 and active_types.has(attuned_type):
+		var roll = randf()
+		if roll < 0.4:
+			return attuned_type
+		
+		# 剩下的从其他可用颜色中选
+		var other_actives = []
+		for t in active_types:
+			if t != attuned_type:
+				other_actives.append(t)
+		
+		if other_actives.size() > 0:
+			return other_actives.pick_random()
+		else:
+			return attuned_type
+	
+	return active_types.pick_random()
 
 func set_attunement(type: int):
 	attuned_type = type
@@ -127,6 +149,9 @@ func reset_game():
 	player_in_aura = false
 	attuned_type = -1
 	
+	for key in boss_states:
+		boss_states[key] = false
+	
 	for key in orb_counts:
 		orb_counts[key] = 0
 	
@@ -144,5 +169,3 @@ func reset_game():
 	
 	update_current_stats()
 	print("[DEBUG] Game State Reset")
-
-

@@ -41,6 +41,19 @@ func _ready():
 	player = get_tree().get_first_node_in_group("Player")
 	core = get_tree().get_first_node_in_group("LifeCore")
 	
+	# Boss 惩罚逻辑：如果赤裂大妖未击败，且是晚上，增加伤害
+	if not GameManager.boss_states["RedCrack"] and GameManager.current_state == GameManager.GameState.NIGHT:
+		var multiplier = 1.0
+		if GameManager.current_wave <= 6:
+			multiplier = 1.2
+		elif GameManager.current_wave <= 13:
+			multiplier = 1.5
+		else:
+			multiplier = 2.0
+		
+		$HitboxComponent.damage *= multiplier
+		print("[DEBUG] Enemy damage buffed by Red Crack (x%.1f)" % multiplier)
+
 	setup_debug_ui()
 
 func setup_debug_ui():
@@ -101,7 +114,17 @@ func _physics_process(delta: float):
 func shoot_at_player():
 	if not bullet_pkg or not player: return
 	var bullet = bullet_pkg.instantiate()
-	bullet.damage = 5.0 # 敌人子弹伤害
+	var base_damage = 5.0
+	if not GameManager.boss_states["RedCrack"] and GameManager.current_state == GameManager.GameState.NIGHT:
+		var multiplier = 1.0
+		if GameManager.current_wave <= 6:
+			multiplier = 1.2
+		elif GameManager.current_wave <= 13:
+			multiplier = 1.5
+		else:
+			multiplier = 2.0
+		base_damage *= multiplier
+	bullet.damage = base_damage
 	bullet.color = Color.WHITE # 敌人子弹白色
 	bullet.global_position = global_position
 	bullet.rotation = global_position.direction_to(player.global_position).angle()
