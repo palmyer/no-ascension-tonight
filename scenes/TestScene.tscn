@@ -4,11 +4,10 @@
 [ext_resource type="Script" uid="uid://dje1s006x21br" path="res://src/entities/Player.gd" id="2_player"]
 [ext_resource type="Script" uid="uid://cj487ng21ttei" path="res://src/components/VelocityComponent.gd" id="3_vel"]
 [ext_resource type="Script" uid="uid://b2u2rvxjw7ksd" path="res://src/components/HealthComponent.gd" id="4_hp"]
-[ext_resource type="Script" uid="uid://bgbdffkg5jjki" path="res://src/components/HitboxComponent.gd" id="5_hit"]
 [ext_resource type="Script" uid="uid://mixa3xthjxbk" path="res://src/entities/LifeCore.gd" id="6_core"]
 [ext_resource type="Script" uid="uid://dwgakcn6avmyh" path="res://src/entities/EnemySpawner.gd" id="7_spawner"]
 [ext_resource type="PackedScene" path="res://scenes/Enemy.tscn" id="8_enemy_pkg"]
-[ext_resource type="Texture2D" uid="uid://ciy8qdjjn78om" path="res://player.png" id="9_cjal3"]
+[ext_resource type="Texture2D" uid="uid://csy1x6b1yn24l" path="res://player.png" id="9_cjal3"]
 [ext_resource type="Script" uid="uid://b2r63ox1uvaq1" path="res://src/components/HurtboxComponent.gd" id="9_hurt"]
 [ext_resource type="Script" uid="uid://doyklg14ehrex" path="res://src/ui/LevelUpUI.gd" id="10_lvl"]
 [ext_resource type="Script" uid="uid://cfwifrxbkjn5v" path="res://src/ui/AttunementUI.gd" id="11_att"]
@@ -16,10 +15,10 @@
 [ext_resource type="PackedScene" path="res://scenes/GateZone.tscn" id="13_gate_pkg"]
 [ext_resource type="PackedScene" path="res://scenes/Boss_RedCrack.tscn" id="14_boss_pkg"]
 [ext_resource type="Texture2D" uid="uid://c0x76m4ru1m22" path="res://plains.png" id="16_plains"]
-[ext_resource type="PackedScene" uid="uid://spear_weapon_scene" path="res://src/weapons/melee/Spear.tscn" id="17_spear_pkg"]
-[ext_resource type="PackedScene" uid="uid://blade_weapon_scene" path="res://src/weapons/melee/Blade.tscn" id="18_blade_pkg"]
-[ext_resource type="PackedScene" uid="uid://sword_weapon_scene" path="res://src/weapons/melee/Sword.tscn" id="19_sword_pkg"]
-[ext_resource type="PackedScene" uid="uid://musket_weapon_scene" path="res://src/weapons/ranged/Musket.tscn" id="20_musket_pkg"]
+[ext_resource type="PackedScene" path="res://src/weapons/melee/Spear.tscn" id="17_spear_pkg"]
+[ext_resource type="PackedScene" path="res://src/weapons/melee/Blade.tscn" id="18_blade_pkg"]
+[ext_resource type="PackedScene" path="res://src/weapons/melee/Sword.tscn" id="19_sword_pkg"]
+[ext_resource type="PackedScene" path="res://src/weapons/ranged/Musket.tscn" id="20_musket_pkg"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_grass"]
 texture = ExtResource("16_plains")
@@ -57,53 +56,11 @@ size = Vector2(24, 24)
 [sub_resource type="CircleShape2D" id="CircleShape2D_player_hurtbox"]
 radius = 12.0
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_sword"]
-size = Vector2(100, 40)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_o4svi"]
-atlas = ExtResource("9_cjal3")
-region = Rect2(0, 0, 48, 48)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_i7hgn"]
-atlas = ExtResource("9_cjal3")
-region = Rect2(48, 0, 48, 48)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_pmhls"]
-atlas = ExtResource("9_cjal3")
-region = Rect2(96, 0, 48, 48)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_uyltb"]
-atlas = ExtResource("9_cjal3")
-region = Rect2(144, 0, 48, 48)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_2kskt"]
-atlas = ExtResource("9_cjal3")
-region = Rect2(192, 0, 48, 48)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_hmfq1"]
-atlas = ExtResource("9_cjal3")
-region = Rect2(240, 0, 48, 48)
-
 [sub_resource type="SpriteFrames" id="SpriteFrames_1uiy2"]
 animations = [{
 "frames": [{
 "duration": 1.0,
-"texture": SubResource("AtlasTexture_o4svi")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_i7hgn")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_pmhls")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_uyltb")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_2kskt")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_hmfq1")
+"texture": ExtResource("9_cjal3")
 }],
 "loop": true,
 "name": &"idle",
@@ -195,16 +152,16 @@ shape = SubResource("CircleShape2D_player_hurtbox")
 
 [node name="WeaponSlot" type="Node2D" parent="Player" unique_id=708118361]
 
-[node name="Blade" parent="Player/WeaponSlot" instance=ExtResource("18_blade_pkg")]
+[node name="Blade" parent="Player/WeaponSlot" unique_id=418993310 instance=ExtResource("18_blade_pkg")]
 
-[node name="Sword" parent="Player/WeaponSlot" instance=ExtResource("19_sword_pkg")]
+[node name="Sword" parent="Player/WeaponSlot" unique_id=550256658 instance=ExtResource("19_sword_pkg")]
 
-[node name="Spear" parent="Player/WeaponSlot" instance=ExtResource("17_spear_pkg")]
+[node name="Spear" parent="Player/WeaponSlot" unique_id=642221454 instance=ExtResource("17_spear_pkg")]
 
-[node name="Musket" parent="Player/WeaponSlot" instance=ExtResource("20_musket_pkg")]
+[node name="Musket" parent="Player/WeaponSlot" unique_id=1193833697 instance=ExtResource("20_musket_pkg")]
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Player" unique_id=1311462391]
-scale = Vector2(2, 2)
+scale = Vector2(1, 1)
 sprite_frames = SubResource("SpriteFrames_1uiy2")
 animation = &"idle"
 frame_progress = 0.5776927
