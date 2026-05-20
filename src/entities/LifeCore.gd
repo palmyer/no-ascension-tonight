@@ -72,13 +72,13 @@ func _draw():
 	draw_polyline(points + PackedVector2Array([points[0]]), Color(0, 1, 1, 0.5), 2.0)
 
 func _on_aura_area_body_entered(body: Node2D):
-	if body is Player:
+	if body.is_in_group("Player"):
 		GameManager.player_in_aura = true
 		GameManager.update_current_stats()
 		print("[DEBUG] Player entered Aura - Buff Applied")
 
 func _on_aura_area_body_exited(body: Node2D):
-	if body is Player:
+	if body.is_in_group("Player"):
 		GameManager.player_in_aura = false
 		GameManager.update_current_stats()
 		print("[DEBUG] Player left Aura - Buff Removed")

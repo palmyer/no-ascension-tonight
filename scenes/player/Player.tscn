@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://d253kgtas5l34"]
 
-[ext_resource type="Script" uid="uid://cng3f34m768wt" path="res://test_study/player_study.gd" id="1_cwyoj"]
+[ext_resource type="Script" uid="uid://cng3f34m768wt" path="res://src/entities/Player.gd" id="1_cwyoj"]
 [ext_resource type="Texture2D" uid="uid://csy1x6b1yn24l" path="res://player.png" id="2_3lict"]
 [ext_resource type="Texture2D" uid="uid://bk1ky8vifn6gn" path="res://sword_48.png" id="3_thl1o"]
 
@@ -66,9 +66,12 @@ tracks/2/path = NodePath("../..")
 tracks/2/interp = 1
 tracks/2/loop_wrap = true
 tracks/2/keys = {
-"times": PackedFloat32Array(),
-"transitions": PackedFloat32Array(),
-"values": []
+"times": PackedFloat32Array(0.05),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"spawn_slash"
+}]
 }
 
 [sub_resource type="Animation" id="Animation_4a4td"]
@@ -107,61 +110,8 @@ _data = {
 &"sword_return": SubResource("Animation_4a4td")
 }
 
-[sub_resource type="Animation" id="Animation_va0bo"]
-length = 0.001
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath(".:scale")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 0,
-"values": [Vector2(1, 1)]
-}
-
-[sub_resource type="Animation" id="Animation_eusxp"]
-resource_name = "look_left"
-length = 0.15
-step = 0.05
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath(".:scale")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.15),
-"transitions": PackedFloat32Array(0.5, 2),
-"update": 0,
-"values": [Vector2(1, 1), Vector2(-1, 1)]
-}
-
-[sub_resource type="Animation" id="Animation_b5tjp"]
-resource_name = "look_right"
-length = 0.15
-step = 0.05
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath(".:scale")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.15),
-"transitions": PackedFloat32Array(0.5, 2),
-"update": 0,
-"values": [Vector2(-1, 1), Vector2(1, 1)]
-}
-
-[sub_resource type="AnimationLibrary" id="AnimationLibrary_3xfu5"]
-_data = {
-&"RESET": SubResource("Animation_va0bo"),
-&"look_left": SubResource("Animation_eusxp"),
-&"look_right": SubResource("Animation_b5tjp")
-}
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_sword_hitbox"]
+size = Vector2(48, 48)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ck1r3"]
 size = Vector2(20, 56)
@@ -172,16 +122,26 @@ script = ExtResource("1_cwyoj")
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=2004590640]
 texture = ExtResource("2_3lict")
 
-[node name="sword" type="Sprite2D" parent="Sprite2D" unique_id=1568672410]
+[node name="SwordPivot" type="Node2D" parent="Sprite2D" unique_id=1307781002]
+
+[node name="sword" type="Sprite2D" parent="Sprite2D/SwordPivot" unique_id=1568672410]
 texture = ExtResource("3_thl1o")
 offset = Vector2(-24, -24)
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="Sprite2D/sword" unique_id=1301180527]
+[node name="AnimationPlayer" type="AnimationPlayer" parent="Sprite2D/SwordPivot/sword" unique_id=1301180527]
 libraries/ = SubResource("AnimationLibrary_ysmc0")
 
-[node name="flip_anim" type="AnimationPlayer" parent="Sprite2D" unique_id=376093739]
-libraries/ = SubResource("AnimationLibrary_3xfu5")
+[node name="SwordHitbox" type="Area2D" parent="Sprite2D/SwordPivot/sword" unique_id=1807642211]
+position = Vector2(-24, -24)
+collision_layer = 8
+collision_mask = 4
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Sprite2D/SwordPivot/sword/SwordHitbox" unique_id=925641113]
+shape = SubResource("RectangleShape2D_sword_hitbox")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=669922116]
 position = Vector2(0, 1)
 shape = SubResource("RectangleShape2D_ck1r3")
+
+[connection signal="animation_finished" from="Sprite2D/SwordPivot/sword/AnimationPlayer" to="." method="_on_animation_player_animation_finished"]

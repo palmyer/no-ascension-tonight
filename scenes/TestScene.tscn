@@ -1,13 +1,11 @@
 [gd_scene format=4 uid="uid://dpyn4eu487ys5"]
 
 [ext_resource type="Script" uid="uid://c0umq2awi2uwo" path="res://scenes/TestScene.gd" id="1_scene"]
-[ext_resource type="Script" uid="uid://dje1s006x21br" path="res://src/entities/Player.gd" id="2_player"]
-[ext_resource type="Script" uid="uid://cj487ng21ttei" path="res://src/components/VelocityComponent.gd" id="3_vel"]
+[ext_resource type="PackedScene" uid="uid://d253kgtas5l34" path="res://scenes/player/Player.tscn" id="2_player"]
 [ext_resource type="Script" uid="uid://b2u2rvxjw7ksd" path="res://src/components/HealthComponent.gd" id="4_hp"]
 [ext_resource type="Script" uid="uid://mixa3xthjxbk" path="res://src/entities/LifeCore.gd" id="6_core"]
 [ext_resource type="Script" uid="uid://dwgakcn6avmyh" path="res://src/entities/EnemySpawner.gd" id="7_spawner"]
 [ext_resource type="PackedScene" path="res://scenes/Enemy.tscn" id="8_enemy_pkg"]
-[ext_resource type="Texture2D" uid="uid://csy1x6b1yn24l" path="res://player.png" id="9_cjal3"]
 [ext_resource type="Script" uid="uid://b2r63ox1uvaq1" path="res://src/components/HurtboxComponent.gd" id="9_hurt"]
 [ext_resource type="Script" uid="uid://doyklg14ehrex" path="res://src/ui/LevelUpUI.gd" id="10_lvl"]
 [ext_resource type="Script" uid="uid://cfwifrxbkjn5v" path="res://src/ui/AttunementUI.gd" id="11_att"]
@@ -15,10 +13,6 @@
 [ext_resource type="PackedScene" path="res://scenes/GateZone.tscn" id="13_gate_pkg"]
 [ext_resource type="PackedScene" path="res://scenes/Boss_RedCrack.tscn" id="14_boss_pkg"]
 [ext_resource type="Texture2D" uid="uid://c0x76m4ru1m22" path="res://plains.png" id="16_plains"]
-[ext_resource type="PackedScene" path="res://src/weapons/melee/Spear.tscn" id="17_spear_pkg"]
-[ext_resource type="PackedScene" path="res://src/weapons/melee/Blade.tscn" id="18_blade_pkg"]
-[ext_resource type="PackedScene" path="res://src/weapons/melee/Sword.tscn" id="19_sword_pkg"]
-[ext_resource type="PackedScene" path="res://src/weapons/ranged/Musket.tscn" id="20_musket_pkg"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_grass"]
 texture = ExtResource("16_plains")
@@ -50,22 +44,8 @@ size = Vector2(100, 2100)
 [sub_resource type="CircleShape2D" id="CircleShape2D_core"]
 radius = 40.0
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
-size = Vector2(24, 24)
-
 [sub_resource type="CircleShape2D" id="CircleShape2D_player_hurtbox"]
 radius = 12.0
-
-[sub_resource type="SpriteFrames" id="SpriteFrames_1uiy2"]
-animations = [{
-"frames": [{
-"duration": 1.0,
-"texture": ExtResource("9_cjal3")
-}],
-"loop": true,
-"name": &"idle",
-"speed": 5.0
-}]
 
 [node name="TestScene" type="Node2D" unique_id=2114153456]
 script = ExtResource("1_scene")
@@ -123,20 +103,13 @@ collision_mask = 2
 [node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="LifeCore/AuraArea" unique_id=357586298]
 polygon = PackedVector2Array(150, 0, 106.066, 106.066, 0, 150, -106.066, 106.066, -150, 0, -106.066, -106.066, 0, -150, 106.066, -106.066)
 
-[node name="Player" type="CharacterBody2D" parent="." unique_id=1546730898]
+[node name="Player" parent="." unique_id=1546730898 instance=ExtResource("2_player")]
 position = Vector2(0, 100)
 collision_layer = 2
 collision_mask = 9
-script = ExtResource("2_player")
 
 [node name="Camera2D" type="Camera2D" parent="Player" unique_id=1131136773]
 position_smoothing_enabled = true
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Player" unique_id=1024992320]
-shape = SubResource("RectangleShape2D_player")
-
-[node name="VelocityComponent" type="Node" parent="Player" unique_id=490806971]
-script = ExtResource("3_vel")
 
 [node name="HealthComponent" type="Node" parent="Player" unique_id=1469687857]
 script = ExtResource("4_hp")
@@ -149,22 +122,6 @@ health_component = NodePath("../HealthComponent")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Player/HurtboxComponent" unique_id=524589346]
 shape = SubResource("CircleShape2D_player_hurtbox")
-
-[node name="WeaponSlot" type="Node2D" parent="Player" unique_id=708118361]
-
-[node name="Blade" parent="Player/WeaponSlot" unique_id=418993310 instance=ExtResource("18_blade_pkg")]
-
-[node name="Sword" parent="Player/WeaponSlot" unique_id=550256658 instance=ExtResource("19_sword_pkg")]
-
-[node name="Spear" parent="Player/WeaponSlot" unique_id=642221454 instance=ExtResource("17_spear_pkg")]
-
-[node name="Musket" parent="Player/WeaponSlot" unique_id=1193833697 instance=ExtResource("20_musket_pkg")]
-
-[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Player" unique_id=1311462391]
-scale = Vector2(1, 1)
-sprite_frames = SubResource("SpriteFrames_1uiy2")
-animation = &"idle"
-frame_progress = 0.5776927
 
 [node name="EnemySpawner" type="Node2D" parent="." unique_id=271254256]
 script = ExtResource("7_spawner")

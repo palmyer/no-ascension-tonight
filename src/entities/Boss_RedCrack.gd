@@ -24,6 +24,7 @@ var charge_direction: Vector2 = Vector2.ZERO
 
 func _ready():
 	add_to_group("Enemy")
+	add_to_group("DamageableEnemy")
 	add_to_group("Boss")
 	
 	# Boss stats
@@ -147,6 +148,10 @@ func stop_charge():
 	modulate = Color.WHITE
 	current_state = State.COOLDOWN
 	timer = 1.0
+
+
+func take_damage(amount: float) -> void:
+	health_component.damage(amount)
 
 func _on_died():
 	print("[BOSS] Red Crack Defeated!")

@@ -40,7 +40,7 @@ func _process(delta: float):
 		attract_speed += 500 * delta
 
 func _on_body_entered(body: Node2D):
-	if body is Player:
+	if body.is_in_group("Player"):
 		# 触发拾取
 		EventBus.emit_signal("orb_collected", type)
 		queue_free()

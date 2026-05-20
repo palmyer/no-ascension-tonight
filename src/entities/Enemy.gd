@@ -24,6 +24,7 @@ var core: Node2D
 
 func _ready():
 	add_to_group("Enemy")
+	add_to_group("DamageableEnemy")
 	
 	# 根据类型设置颜色
 	if enemy_type == EnemyType.RANGED:
@@ -135,6 +136,10 @@ func shoot_at_player():
 	hb.collision_mask = 2   # 检测“玩家身体层”，用于子弹碰撞消失
 	
 	get_tree().root.add_child(bullet)
+
+
+func take_damage(amount: float) -> void:
+	health_component.damage(amount)
 
 func _on_died():
 	print("Enemy Defeated!")
