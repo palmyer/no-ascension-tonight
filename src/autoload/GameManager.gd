@@ -21,8 +21,8 @@ var player_level: int = 1
 var xp_required: int = 10 # 初始升级所需
 var xp_growth: int = 5
 
-# 基础属性 (由升级卡片提升)
-var base_stats = {
+# 基础属性模板 (唯一来源)
+const DEFAULT_BASE_STATS = {
 	"max_health": 100,
 	"damage_pct": 0,
 	"attack_speed": 0,
@@ -30,9 +30,11 @@ var base_stats = {
 	"armor": 0,
 	"bullet_count": 1,
 	"hp_regen_5s": 0.0,           # 5秒回复量
-	"attack_range": 600.0,        # 基础攻击范围
+	"attack_range": 1600.0,        # 基础攻击范围
 	"pickup_range": 150.0        # 基础拾取范围
 }
+# 基础属性 (由升级卡片提升)
+var base_stats = DEFAULT_BASE_STATS.duplicate(true)
 
 # 当前实时属性 (基础 + 灵性加成 + 光环加成)
 var current_stats = {}
@@ -156,16 +158,7 @@ func reset_game():
 		orb_counts[key] = 0
 	
 	# 重置基础属性
-	base_stats = {
-		"max_health": 100,
-		"damage_pct": 0,
-		"attack_speed": 0,
-		"move_speed": 0,
-		"armor": 0,
-		"bullet_count": 1,
-		"attack_range": 600.0,
-		"pickup_range": 150.0
-	}
+	base_stats = DEFAULT_BASE_STATS.duplicate(true)
 	
 	update_current_stats()
 	print("[DEBUG] Game State Reset")

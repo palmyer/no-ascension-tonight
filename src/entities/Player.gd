@@ -13,6 +13,7 @@ var can_slash := true
 @onready var health_component: HealthComponent = get_node_or_null("HealthComponent")
 @onready var sword_pivot: Node2D = $Sprite2D/SwordPivot
 @onready var sword_anim: AnimationPlayer = $Sprite2D/SwordPivot/sword/AnimationPlayer
+@onready var sword_sprite: Node2D = $Sprite2D/SwordPivot/sword
 @onready var sword_hitbox: Area2D = $Sprite2D/SwordPivot/sword/SwordHitbox
 @onready var sword_hitbox_shape: CollisionShape2D = $Sprite2D/SwordPivot/sword/SwordHitbox/CollisionShape2D
 
@@ -20,6 +21,9 @@ var slash_hit_targets: Dictionary = {}
 var health_bar: ProgressBar
 var target_enemy: Node2D
 var locked_target: Node2D
+var sword_base_position: Vector2
+var swing_extension_dir_local: Vector2 = Vector2.ZERO
+var swing_extension_amount: float = 0.0
 
 func _ready() -> void:
 	add_to_group("Player")
@@ -33,6 +37,8 @@ func _ready() -> void:
 	if sword_hitbox:
 		sword_hitbox.monitoring = false
 		sword_hitbox.body_entered.connect(_on_sword_hitbox_body_entered)
+	if sword_sprite:
+		sword_base_position = sword_sprite.position
 	$Sprite2D/SwordPivot/sword.show_behind_parent = false
 
 func _setup_health_bar() -> void:
@@ -67,7 +73,7 @@ func _physics_process(delta: float) -> void:
 	target_enemy = locked_target
 	if target_enemy and is_instance_valid(target_enemy):
 		var dist: float = global_position.distance_to(target_enemy.global_position)
-		var attack_range: float = _get_attack_trigger_range()
+		var attack_range: float = _get_attack_trigger_range() + _get_melee_range_bonus()
 		var target_radius: float = _get_target_trigger_radius(target_enemy)
 
 		if dist <= attack_range + target_radius:
@@ -75,12 +81,14 @@ func _physics_process(delta: float) -> void:
 				sword_pivot.look_at(target_enemy.global_position)
 			if can_slash:
 				slash_hit_targets.clear()
+				_prepare_sword_range_extension()
 				if sword_hitbox:
 					sword_hitbox.monitoring = true
 				sword_anim.speed_scale = sword_anim.get_animation("slash").length / slash_time
 				sword_anim.play("slash")
 				can_slash = false
 
+	_update_sword_extension_visual()
 	if sword_hitbox and sword_hitbox.monitoring:
 		for body in sword_hitbox.get_overlapping_bodies():
 			_apply_slash_hit(body)
@@ -89,7 +97,7 @@ func _physics_process(delta: float) -> void:
 func _draw() -> void:
 	if not debug_attack_visual:
 		return
-	var attack_range: float = _get_attack_trigger_range()
+	var attack_range: float = _get_attack_trigger_range() + _get_melee_range_bonus()
 	draw_arc(Vector2.ZERO, attack_range, 0.0, TAU, 64, Color(0.3, 0.8, 1.0, 0.8), 2.0)
 	if target_enemy and is_instance_valid(target_enemy):
 		var enemy_local: Vector2 = to_local(target_enemy.global_position)
@@ -132,11 +140,43 @@ func _get_attack_trigger_range() -> float:
 			hitbox_radius = circle.radius * c_scale
 		else:
 			hitbox_radius = 24.0
-	var range_bonus: float = 0.0
-	if get_node_or_null("/root/GameManager"):
-		var ranged_bonus: float = GameManager.current_stats.get("attack_range", 600.0) - 600.0
-		range_bonus = ranged_bonus * 0.5
-	return center_dist + hitbox_radius + range_bonus
+	return center_dist + hitbox_radius
+
+func _get_melee_range_bonus() -> float:
+	if not get_node_or_null("/root/GameManager"):
+		return 0.0
+	var ranged_bonus: float = GameManager.current_stats.get("attack_range", 600.0) - 600.0
+	return max(ranged_bonus * 0.5, 0.0)
+
+func _prepare_sword_range_extension() -> void:
+	if not sword_sprite or not sword_pivot:
+		return
+	var bonus: float = _get_melee_range_bonus()
+	if bonus <= 0.0:
+		swing_extension_amount = 0.0
+		swing_extension_dir_local = Vector2.ZERO
+		sword_sprite.position = sword_base_position
+		return
+	var target_dir_global: Vector2 = Vector2.RIGHT
+	if locked_target and is_instance_valid(locked_target):
+		target_dir_global = (locked_target.global_position - global_position).normalized()
+	swing_extension_dir_local = sword_pivot.global_transform.basis_xform_inv(target_dir_global).normalized()
+	swing_extension_amount = bonus
+
+func _update_sword_extension_visual() -> void:
+	if not sword_sprite or not sword_anim:
+		return
+	var t: float = 0.0
+	if sword_anim.current_animation == &"slash":
+		var slash_anim: Animation = sword_anim.get_animation("slash")
+		var slash_anim_len: float = slash_anim.length if slash_anim else 0.0
+		if slash_anim_len > 0.0:
+			var p: float = clamp(sword_anim.current_animation_position / slash_anim_len, 0.0, 1.0)
+			if p <= 0.5:
+				t = p * 2.0
+			else:
+				t = (1.0 - p) * 2.0
+	sword_sprite.position = sword_base_position + swing_extension_dir_local * swing_extension_amount * t
 
 func _get_target_trigger_radius(target: Node2D) -> float:
 	var max_radius: float = 0.0
@@ -202,3 +242,7 @@ func _on_animation_player_animation_finished(anim_name: StringName) -> void:
 	else:
 		can_slash = true
 		locked_target = null
+		if sword_sprite:
+			sword_sprite.position = sword_base_position
+		swing_extension_amount = 0.0
+		swing_extension_dir_local = Vector2.ZERO
