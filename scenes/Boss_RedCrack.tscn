@@ -13,8 +13,8 @@ radius = 24.0
 size = Vector2(300, 60)
 
 [node name="BossRedCrack" type="CharacterBody2D"]
-collision_layer = 4
-collision_mask = 5
+collision_layer = 32
+collision_mask = 1
 script = ExtResource("1_boss")
 
 [node name="Placeholder" type="ColorRect" parent="."]
@@ -44,7 +44,7 @@ shape = SubResource("CircleShape2D_boss")
 script = ExtResource("3_vel")
 
 [node name="HurtboxComponent" type="Area2D" parent="." node_paths=PackedStringArray("health_component")]
-collision_layer = 4
+collision_layer = 32
 collision_mask = 8
 script = ExtResource("4_hurt")
 health_component = NodePath("../HealthComponent")

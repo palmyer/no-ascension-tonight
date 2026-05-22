@@ -26,6 +26,7 @@ func _ready():
 	add_to_group("Enemy")
 	add_to_group("DamageableEnemy")
 	add_to_group("Boss")
+	z_index = -1
 	
 	# Boss stats
 	var scaled_health = 500.0 + (GameManager.current_wave - 1) * 100.0
@@ -63,6 +64,8 @@ func _physics_process(delta: float):
 
 	# 持续检测接触伤害
 	check_contact_damage()
+	# 水平翻转面向玩家
+	$Placeholder.scale.x = -1.0 if target.global_position.x < global_position.x else 1.0
 
 	match current_state:
 		State.CHASE:
