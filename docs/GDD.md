@@ -28,4 +28,4 @@
 ## 6. 斩首行动 (The Beheading)
 提前挑战大妖，成功后封死对应山门，减少夜间压力，但该色能量产出将受限。
 
-(详见原始设计文档: No Ascension Tonight Design.md)
+(详见原始设计文档: `docs/no_ascension_tonight_design.md`)
