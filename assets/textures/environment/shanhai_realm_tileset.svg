@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="192" viewBox="0 0 96 192" shape-rendering="crispEdges">
+  <defs>
+    <pattern id="grass" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#1d4037"/>
+      <rect x="2" y="3" width="1" height="3" fill="#35634a"/>
+      <rect x="7" y="10" width="1" height="3" fill="#285744"/>
+      <rect x="12" y="5" width="2" height="1" fill="#315f48"/>
+      <rect x="4" y="14" width="2" height="1" fill="#16352f"/>
+    </pattern>
+    <pattern id="grass_deep" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#15352f"/>
+      <rect x="1" y="2" width="2" height="2" fill="#275744"/>
+      <rect x="9" y="4" width="1" height="4" fill="#214b3d"/>
+      <rect x="5" y="11" width="3" height="1" fill="#2b5942"/>
+      <rect x="13" y="13" width="1" height="2" fill="#0e2928"/>
+    </pattern>
+    <pattern id="moss" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#35533c"/>
+      <rect x="2" y="2" width="4" height="2" fill="#54734a"/>
+      <rect x="10" y="5" width="3" height="2" fill="#416743"/>
+      <rect x="4" y="11" width="2" height="3" fill="#294735"/>
+      <rect x="13" y="13" width="2" height="1" fill="#638052"/>
+    </pattern>
+    <pattern id="soil" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#40352f"/>
+      <rect x="1" y="4" width="5" height="1" fill="#5a4637"/>
+      <rect x="9" y="2" width="2" height="2" fill="#2f2b2a"/>
+      <rect x="6" y="10" width="4" height="1" fill="#594235"/>
+      <rect x="12" y="14" width="2" height="1" fill="#2d2929"/>
+    </pattern>
+    <pattern id="stone" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#3d4645"/>
+      <path d="M0 6H7M10 6H16M3 12H12" stroke="#59615d" stroke-width="1"/>
+      <path d="M7 0V6M10 6V12M3 12V16" stroke="#293535" stroke-width="1"/>
+    </pattern>
+    <pattern id="water" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#123646"/>
+      <path d="M1 4C4 2 6 6 9 4S13 2 16 4M0 11C3 9 6 13 9 11S13 9 16 11" fill="none" stroke="#286078" stroke-width="1"/>
+      <rect x="4" y="7" width="2" height="1" fill="#3b7b8b"/>
+    </pattern>
+    <pattern id="red_rune" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#40302f"/>
+      <path d="M8 2L10 6L14 8L10 10L8 14L6 10L2 8L6 6Z" fill="none" stroke="#a84443" stroke-width="1"/>
+      <rect x="7" y="7" width="2" height="2" fill="#dc7353"/>
+    </pattern>
+    <pattern id="blue_rune" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#293a48"/>
+      <path d="M2 9L5 6L8 10L11 5L14 8" fill="none" stroke="#4b88a9" stroke-width="1"/>
+      <rect x="7" y="2" width="2" height="2" fill="#86c5d2"/>
+    </pattern>
+    <pattern id="green_rune" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#294038"/>
+      <path d="M8 14C3 11 3 5 8 2C13 5 13 11 8 14Z" fill="none" stroke="#5e9b68" stroke-width="1"/>
+      <path d="M8 4V12" stroke="#9acb7d" stroke-width="1"/>
+    </pattern>
+    <pattern id="yellow_rune" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#413b2d"/>
+      <path d="M3 8C5 3 11 3 13 8C11 13 5 13 3 8Z" fill="none" stroke="#b5964c" stroke-width="1"/>
+      <rect x="7" y="7" width="2" height="2" fill="#e0c26b"/>
+    </pattern>
+  </defs>
+
+  <rect width="96" height="192" fill="#162f2e"/>
+
+  <g>
+    <rect x="0" y="0" width="16" height="16" fill="url(#grass)"/><rect x="16" y="0" width="16" height="16" fill="url(#grass_deep)"/><rect x="32" y="0" width="16" height="16" fill="url(#grass)"/><rect x="48" y="0" width="16" height="16" fill="url(#moss)"/><rect x="64" y="0" width="16" height="16" fill="url(#grass)"/><rect x="80" y="0" width="16" height="16" fill="url(#grass_deep)"/>
+    <rect x="0" y="16" width="16" height="16" fill="url(#grass)"/><rect x="16" y="16" width="16" height="16" fill="url(#grass_deep)"/><rect x="32" y="16" width="16" height="16" fill="url(#moss)"/><rect x="48" y="16" width="16" height="16" fill="url(#grass)"/><rect x="64" y="16" width="16" height="16" fill="url(#grass_deep)"/><rect x="80" y="16" width="16" height="16" fill="url(#grass)"/>
+    <rect x="0" y="32" width="16" height="16" fill="url(#moss)"/><rect x="16" y="32" width="16" height="16" fill="url(#grass)"/><rect x="32" y="32" width="16" height="16" fill="url(#grass_deep)"/><rect x="48" y="32" width="16" height="16" fill="url(#moss)"/><rect x="64" y="32" width="16" height="16" fill="url(#grass)"/><rect x="80" y="32" width="16" height="16" fill="url(#grass_deep)"/>
+    <rect x="0" y="48" width="16" height="16" fill="url(#soil)"/><rect x="16" y="48" width="16" height="16" fill="url(#soil)"/><rect x="32" y="48" width="16" height="16" fill="url(#stone)"/><rect x="48" y="48" width="16" height="16" fill="url(#stone)"/><rect x="64" y="48" width="16" height="16" fill="url(#soil)"/><rect x="80" y="48" width="16" height="16" fill="url(#soil)"/>
+    <rect x="0" y="64" width="16" height="16" fill="url(#stone)"/><rect x="16" y="64" width="16" height="16" fill="url(#red_rune)"/><rect x="32" y="64" width="16" height="16" fill="url(#blue_rune)"/><rect x="48" y="64" width="16" height="16" fill="url(#green_rune)"/><rect x="64" y="64" width="16" height="16" fill="url(#yellow_rune)"/><rect x="80" y="64" width="16" height="16" fill="url(#stone)"/>
+    <rect x="0" y="80" width="16" height="16" fill="url(#stone)"/><rect x="16" y="80" width="16" height="16" fill="url(#stone)"/><rect x="32" y="80" width="16" height="16" fill="url(#red_rune)"/><rect x="48" y="80" width="16" height="16" fill="url(#blue_rune)"/><rect x="64" y="80" width="16" height="16" fill="url(#green_rune)"/><rect x="80" y="80" width="16" height="16" fill="url(#yellow_rune)"/>
+    <rect x="0" y="96" width="16" height="16" fill="url(#grass_deep)"/><rect x="16" y="96" width="16" height="16" fill="url(#soil)"/><rect x="32" y="96" width="16" height="16" fill="url(#stone)"/><rect x="48" y="96" width="16" height="16" fill="url(#stone)"/><rect x="64" y="96" width="16" height="16" fill="url(#soil)"/><rect x="80" y="96" width="16" height="16" fill="url(#grass_deep)"/>
+    <rect x="0" y="112" width="16" height="16" fill="url(#soil)"/><rect x="16" y="112" width="16" height="16" fill="url(#soil)"/><rect x="32" y="112" width="16" height="16" fill="url(#grass_deep)"/><rect x="48" y="112" width="16" height="16" fill="url(#grass_deep)"/><rect x="64" y="112" width="16" height="16" fill="url(#soil)"/><rect x="80" y="112" width="16" height="16" fill="url(#soil)"/>
+    <rect x="0" y="128" width="16" height="16" fill="url(#water)"/><rect x="16" y="128" width="16" height="16" fill="url(#water)"/><rect x="32" y="128" width="16" height="16" fill="url(#stone)"/><rect x="48" y="128" width="16" height="16" fill="url(#stone)"/><rect x="64" y="128" width="16" height="16" fill="url(#water)"/><rect x="80" y="128" width="16" height="16" fill="url(#water)"/>
+    <rect x="0" y="144" width="16" height="16" fill="url(#water)"/><rect x="16" y="144" width="16" height="16" fill="url(#stone)"/><rect x="32" y="144" width="16" height="16" fill="url(#stone)"/><rect x="48" y="144" width="16" height="16" fill="url(#stone)"/><rect x="64" y="144" width="16" height="16" fill="url(#stone)"/><rect x="80" y="144" width="16" height="16" fill="url(#water)"/>
+    <rect x="0" y="160" width="16" height="16" fill="url(#soil)"/><rect x="16" y="160" width="16" height="16" fill="url(#red_rune)"/><rect x="32" y="160" width="16" height="16" fill="url(#green_rune)"/><rect x="48" y="160" width="16" height="16" fill="url(#blue_rune)"/><rect x="64" y="160" width="16" height="16" fill="url(#yellow_rune)"/><rect x="80" y="160" width="16" height="16" fill="url(#soil)"/>
+    <rect x="0" y="176" width="16" height="16" fill="url(#grass_deep)"/><rect x="16" y="176" width="16" height="16" fill="url(#soil)"/><rect x="32" y="176" width="16" height="16" fill="url(#stone)"/><rect x="48" y="176" width="16" height="16" fill="url(#stone)"/><rect x="64" y="176" width="16" height="16" fill="url(#soil)"/><rect x="80" y="176" width="16" height="16" fill="url(#grass_deep)"/>
+  </g>
+</svg>

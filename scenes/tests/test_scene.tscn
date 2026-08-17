@@ -12,10 +12,14 @@
 [ext_resource type="Script" uid="uid://co781sg1n0yt" path="res://src/ui/game_over_ui.gd" id="12_go"]
 [ext_resource type="PackedScene" path="res://scenes/world/gate_zone.tscn" id="13_gate_pkg"]
 [ext_resource type="PackedScene" path="res://scenes/entities/bosses/boss_red_crack.tscn" id="14_boss_pkg"]
-[ext_resource type="Texture2D" uid="uid://c0x76m4ru1m22" path="res://assets/textures/environment/plains.png" id="16_plains"]
+[ext_resource type="Texture2D" path="res://assets/textures/environment/shanhai_realm_tileset.svg" id="16_map_tiles"]
+[ext_resource type="Texture2D" path="res://assets/textures/aura/life_core_aura_red.svg" id="17_aura_red"]
+[ext_resource type="Texture2D" path="res://assets/textures/aura/life_core_aura_green.svg" id="18_aura_green"]
+[ext_resource type="Texture2D" path="res://assets/textures/aura/life_core_aura_blue.svg" id="19_aura_blue"]
+[ext_resource type="Texture2D" path="res://assets/textures/aura/life_core_aura_yellow.svg" id="20_aura_yellow"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_grass"]
-texture = ExtResource("16_plains")
+texture = ExtResource("16_map_tiles")
 0:1/0 = 0
 1:1/0 = 0
 2:1/0 = 0
@@ -92,6 +96,25 @@ offset_top = -30.0
 offset_right = 30.0
 offset_bottom = 30.0
 color = Color(0, 1, 0.498039, 1)
+
+[node name="AuraVisuals" type="Node2D" parent="LifeCore"]
+z_index = -1
+
+[node name="Red" type="Sprite2D" parent="LifeCore/AuraVisuals"]
+texture = ExtResource("17_aura_red")
+modulate = Color(1, 1, 1, 0.58)
+
+[node name="Green" type="Sprite2D" parent="LifeCore/AuraVisuals"]
+texture = ExtResource("18_aura_green")
+modulate = Color(1, 1, 1, 0.58)
+
+[node name="Blue" type="Sprite2D" parent="LifeCore/AuraVisuals"]
+texture = ExtResource("19_aura_blue")
+modulate = Color(1, 1, 1, 0.58)
+
+[node name="Yellow" type="Sprite2D" parent="LifeCore/AuraVisuals"]
+texture = ExtResource("20_aura_yellow")
+modulate = Color(1, 1, 1, 0.58)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="LifeCore" unique_id=821160839]
 shape = SubResource("CircleShape2D_core")

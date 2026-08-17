@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="384" height="384" viewBox="0 0 384 384">
+  <defs>
+    <radialGradient id="red_glow" cx="50%" cy="18%" r="84%">
+      <stop offset="0" stop-color="#ffd47a" stop-opacity="0.9"/>
+      <stop offset="0.48" stop-color="#d34b45" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#6e1f35" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <path d="M192 202C151 172 124 126 145 82C158 54 181 46 192 14C204 46 226 54 239 82C260 126 233 172 192 202Z" fill="#9e3040" opacity="0.18"/>
+  <path d="M192 198C159 165 145 126 160 91C171 66 186 54 192 30C199 54 214 66 224 91C240 126 225 165 192 198Z" fill="url(#red_glow)"/>
+  <path d="M192 194C183 160 182 121 192 70C202 121 201 160 192 194Z" fill="#ffb45f" opacity="0.48"/>
+  <path d="M153 103C169 117 177 135 180 158M231 103C215 117 207 135 204 158" fill="none" stroke="#f06a50" stroke-width="3" opacity="0.7"/>
+  <path d="M192 44L198 60L214 66L198 72L192 88L186 72L170 66L186 60Z" fill="none" stroke="#ffe0a0" stroke-width="2" opacity="0.8"/>
+  <circle cx="192" cy="194" r="7" fill="#ffd47a" opacity="0.85"/>
+</svg>

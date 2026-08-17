@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://cak417yxfnh7o"]
 
-[ext_resource type="Texture2D" uid="uid://c0x76m4ru1m22" path="res://assets/textures/environment/plains.png" id="1_nnsk1"]
+[ext_resource type="Texture2D" path="res://assets/textures/environment/shanhai_realm_tileset.svg" id="1_map_tiles"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_rwgxs"]
-texture = ExtResource("1_nnsk1")
+texture = ExtResource("1_map_tiles")
 0:0/0 = 0
 1:0/0 = 0
 2:0/0 = 0
