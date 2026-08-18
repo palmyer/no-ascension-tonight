@@ -119,6 +119,9 @@ func _physics_process(delta: float):
 
 	if not player: return
 
+	# Keep every enemy type facing the player, including healers that return early.
+	sprite.flip_h = player.global_position.x < global_position.x
+
 	var dist_to_player = global_position.distance_to(player.global_position)
 	var current_aggro = aggro_range
 	var is_night = GameManager.current_state == GameManager.GameState.NIGHT
@@ -182,8 +185,6 @@ func _physics_process(delta: float):
 		move_and_slide()
 	else:
 		velocity = Vector2.ZERO
-
-	sprite.flip_h = player.global_position.x < global_position.x
 
 func heal_nearby_enemies() -> bool:
 	var enemies = get_tree().get_nodes_in_group("Enemy")
