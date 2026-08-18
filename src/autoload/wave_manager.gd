@@ -11,9 +11,12 @@ signal wave_finished(wave_num: int)
 var time_left: float = 0.0
 
 func _ready():
-	start_day()
+	if GameManager.game_started:
+		start_day()
 
 func _process(delta: float):
+	if not GameManager.game_started:
+		return
 	time_left -= delta
 	if time_left <= 0:
 		_on_timer_finished()

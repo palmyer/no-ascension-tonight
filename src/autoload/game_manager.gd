@@ -3,6 +3,32 @@ extends Node
 enum GameState { DAY, SHOP, NIGHT }
 var current_state: GameState = GameState.DAY
 var current_wave: int = 1
+var game_started: bool = false
+
+const STARTING_WEAPON_ORDER = ["sword", "blade", "spear", "musket"]
+const STARTING_WEAPONS = {
+	"sword": {
+		"name": "引霜灵剑",
+		"subtitle": "平衡近战",
+		"description": "攻守均衡，挥斩稳定，适合第一次踏入秘境。"
+	},
+	"blade": {
+		"name": "破鳞钢刃",
+		"subtitle": "快速连斩",
+		"description": "出手更快，贴身压制妖兽，但攻击距离较短。"
+	},
+	"spear": {
+		"name": "龙脊长枪",
+		"subtitle": "长距爆发",
+		"description": "攻击距离与伤害更高，回身较慢，需要预判走位。"
+	},
+	"musket": {
+		"name": "火符连铳",
+		"subtitle": "远程守线",
+		"description": "远距离发射符弹，适合守住灵核外围。"
+	}
+}
+var selected_weapon_id: String = "sword"
 
 # Debug 开关
 var debug_mode: bool = true
@@ -134,6 +160,18 @@ func set_attunement(type: int):
 	attuned_type = type
 	print("[DEBUG] Attunement changed to: ", type)
 
+func select_starting_weapon(weapon_id: String) -> void:
+	if STARTING_WEAPONS.has(weapon_id):
+		selected_weapon_id = weapon_id
+
+func get_selected_weapon() -> Dictionary:
+	return STARTING_WEAPONS.get(selected_weapon_id, STARTING_WEAPONS["sword"])
+
+func start_new_run() -> void:
+	reset_game()
+	game_started = true
+	WaveManager.start_day()
+
 func get_min_energy_level() -> int:
 	var min_count = orb_counts[0]
 	for i in range(1, 4):
@@ -143,6 +181,7 @@ func get_min_energy_level() -> int:
 	return min_count / 5
 
 func reset_game():
+	game_started = false
 	current_state = GameState.DAY
 	current_wave = 1
 	total_orbs = 0

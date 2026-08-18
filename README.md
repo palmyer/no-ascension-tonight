@@ -8,8 +8,11 @@
 - `src/components/`: 可复用组件
 - `src/entities/`: 游戏实体脚本
 - `src/ui/`: UI 脚本
+- `src/autoload/settings_manager.gd`: 显示设置持久化
 - `src/weapons/`: 武器逻辑
 - `src/tests/`: 测试场景脚本
+- `scenes/ui/`: 启动 Logo、主菜单和设置界面
+- `scenes/levels/`: 可进入的关卡场景
 - `scenes/entities/`: 实体场景
 - `scenes/world/`: 世界与关卡场景
 - `scenes/weapons/`: 武器场景
@@ -17,4 +20,4 @@
 - `assets/textures/`: 按用途整理的纹理资源
 - `docs/`: 设计文档与任务记录
 
-主入口：`scenes/tests/test_scene.tscn`
+主入口：`scenes/ui/startup_logo.tscn`

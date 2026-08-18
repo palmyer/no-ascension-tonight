@@ -2,6 +2,11 @@ extends CharacterBody2D
 class_name Player
 
 const MOVE_SPEED := 250.0
+const SWORD_TEXTURE = preload("res://assets/textures/weapons/weapon_sword.png")
+const BLADE_TEXTURE = preload("res://assets/textures/weapons/weapon_blade.png")
+const SPEAR_TEXTURE = preload("res://assets/textures/weapons/weapon_spear.png")
+const MUSKET_TEXTURE = preload("res://assets/textures/weapons/weapon_flute.png")
+const PROJECTILE_SCENE = preload("res://scenes/entities/projectiles/bullet.tscn")
 
 var can_slash := true
 
@@ -9,11 +14,16 @@ var can_slash := true
 @export var sword_return_time: float = 0.5
 @export var weapon_damage: float = 10.0
 @export var debug_attack_visual: bool = true
+var uses_ranged_weapon := false
+var ranged_attack_timer := 0.0
+var ranged_attack_range := 760.0
+var ranged_cooldown := 0.8
+var melee_range_multiplier := 1.0
 
 @onready var health_component: HealthComponent = get_node_or_null("HealthComponent")
 @onready var sword_pivot: Node2D = $Sprite2D/SwordPivot
 @onready var sword_anim: AnimationPlayer = $Sprite2D/SwordPivot/sword/AnimationPlayer
-@onready var sword_sprite: Node2D = $Sprite2D/SwordPivot/sword
+@onready var sword_sprite: Sprite2D = $Sprite2D/SwordPivot/sword
 @onready var sword_hitbox: Area2D = $Sprite2D/SwordPivot/sword/SwordHitbox
 @onready var sword_hitbox_shape: CollisionShape2D = $Sprite2D/SwordPivot/sword/SwordHitbox/CollisionShape2D
 
@@ -27,12 +37,13 @@ var swing_extension_amount: float = 0.0
 
 func _ready() -> void:
 	add_to_group("Player")
+	_apply_starting_weapon()
 	_setup_health_bar()
 	if health_component:
 		health_component.health_changed.connect(_on_health_changed)
 		health_component.died.connect(_on_died)
 		_on_health_changed(health_component.current_health, health_component.max_health)
-	if sword_anim:
+	if sword_anim and not sword_anim.animation_finished.is_connected(_on_animation_player_animation_finished):
 		sword_anim.animation_finished.connect(_on_animation_player_animation_finished)
 	if sword_hitbox:
 		sword_hitbox.monitoring = false
@@ -68,6 +79,11 @@ func _physics_process(delta: float) -> void:
 	velocity = input_dir * MOVE_SPEED
 	move_and_slide()
 
+	if uses_ranged_weapon:
+		_process_ranged_attack(delta)
+		queue_redraw()
+		return
+
 	if can_slash or not (locked_target and is_instance_valid(locked_target)):
 		locked_target = _get_nearest_enemy()
 	target_enemy = locked_target
@@ -94,10 +110,70 @@ func _physics_process(delta: float) -> void:
 			_apply_slash_hit(body)
 	queue_redraw()
 
+func _apply_starting_weapon() -> void:
+	uses_ranged_weapon = false
+	sword_sprite.visible = true
+	sword_sprite.scale = Vector2.ONE
+	sword_sprite.texture = SWORD_TEXTURE
+	weapon_damage = 10.0
+	slash_time = 0.2
+	sword_return_time = 0.5
+	melee_range_multiplier = 1.0
+
+	match GameManager.selected_weapon_id:
+		"blade":
+			sword_sprite.texture = BLADE_TEXTURE
+			weapon_damage = 15.0
+			slash_time = 0.17
+			sword_return_time = 0.42
+			melee_range_multiplier = 0.9
+		"spear":
+			sword_sprite.texture = SPEAR_TEXTURE
+			weapon_damage = 22.0
+			slash_time = 0.24
+			sword_return_time = 0.55
+			melee_range_multiplier = 1.25
+		"musket":
+			sword_sprite.texture = MUSKET_TEXTURE
+			sword_sprite.scale = Vector2(0.85, 0.85)
+			weapon_damage = 16.0
+			uses_ranged_weapon = true
+			ranged_attack_range = 760.0
+			ranged_cooldown = 0.8
+
+func _process_ranged_attack(delta: float) -> void:
+	ranged_attack_timer = max(ranged_attack_timer - delta, 0.0)
+	target_enemy = _get_nearest_enemy()
+	if not target_enemy or not is_instance_valid(target_enemy):
+		return
+
+	var distance_to_target := global_position.distance_to(target_enemy.global_position)
+	if distance_to_target > ranged_attack_range:
+		return
+
+	if sword_pivot:
+		sword_pivot.look_at(target_enemy.global_position)
+	if ranged_attack_timer <= 0.0:
+		_fire_ranged_projectile(target_enemy)
+		var attack_speed_multiplier: float = 1.0 + GameManager.current_stats.get("attack_speed", 0.0) / 100.0
+		ranged_attack_timer = ranged_cooldown / attack_speed_multiplier
+
+func _fire_ranged_projectile(target: Node2D) -> void:
+	var projectile = PROJECTILE_SCENE.instantiate()
+	var damage_multiplier: float = 1.0 + GameManager.current_stats.get("damage_pct", 0.0) / 100.0
+	projectile.damage = weapon_damage * damage_multiplier
+	projectile.speed = 680.0
+	projectile.color = Color("f3b85d")
+	projectile.global_position = global_position
+	projectile.rotation = global_position.direction_to(target.global_position).angle()
+	get_tree().root.add_child(projectile)
+
 func _draw() -> void:
 	if not debug_attack_visual:
 		return
-	var attack_range: float = _get_attack_trigger_range() + _get_melee_range_bonus()
+	var attack_range: float = _get_attack_trigger_range()
+	if not uses_ranged_weapon:
+		attack_range += _get_melee_range_bonus()
 	draw_arc(Vector2.ZERO, attack_range, 0.0, TAU, 64, Color(0.3, 0.8, 1.0, 0.8), 2.0)
 	if target_enemy and is_instance_valid(target_enemy):
 		var enemy_local: Vector2 = to_local(target_enemy.global_position)
@@ -123,6 +199,8 @@ func _get_nearest_enemy() -> Node2D:
 	return nearest
 
 func _get_attack_trigger_range() -> float:
+	if uses_ranged_weapon:
+		return ranged_attack_range
 	if not sword_hitbox:
 		return 80.0
 	var center_dist: float = global_position.distance_to(sword_hitbox.global_position)
@@ -140,7 +218,7 @@ func _get_attack_trigger_range() -> float:
 			hitbox_radius = circle.radius * c_scale
 		else:
 			hitbox_radius = 24.0
-	return center_dist + hitbox_radius
+	return (center_dist + hitbox_radius) * melee_range_multiplier
 
 func _get_melee_range_bonus() -> float:
 	if not get_node_or_null("/root/GameManager"):
@@ -215,7 +293,8 @@ func _apply_slash_hit(body: Node2D) -> void:
 		return
 	slash_hit_targets[body_id] = true
 	if body.has_method("take_damage"):
-		body.take_damage(weapon_damage)
+		var damage_multiplier: float = 1.0 + GameManager.current_stats.get("damage_pct", 0.0) / 100.0
+		body.take_damage(weapon_damage * damage_multiplier)
 
 func take_damage(amount: float) -> void:
 	if health_component:

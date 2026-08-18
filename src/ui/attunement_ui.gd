@@ -1,7 +1,5 @@
 extends Control
 
-@onready var wheel_center = $Center
-
 var hovered_sector: int = -1 # 0:R, 1:B, 2:G, 3:Y (顺时针，从上方开始)
 var sector_scales = [1.0, 1.0, 1.0, 1.0]
 

@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="no-ascension-tonight"
-run/main_scene="res://scenes/tests/test_scene.tscn"
+run/main_scene="res://scenes/ui/startup_logo.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 
@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 EventBus="*res://src/autoload/event_bus.gd"
 GameManager="*res://src/autoload/game_manager.gd"
 WaveManager="*res://src/autoload/wave_manager.gd"
+SettingsManager="*res://src/autoload/settings_manager.gd"
 
 [display]
 

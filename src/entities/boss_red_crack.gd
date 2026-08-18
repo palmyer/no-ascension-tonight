@@ -17,7 +17,7 @@ var target: Node2D
 var timer: float = 0.0
 var charge_direction: Vector2 = Vector2.ZERO
 
-@onready var health_label: Label = $HealthLabel
+var health_label: Label
 @onready var slash_visual: ColorRect = $WeaponPivot/SlashVisual
 @onready var contact_hitbox: Area2D = $ContactHitbox
 @onready var dash_hitbox: Area2D = $WeaponPivot/HitboxComponent

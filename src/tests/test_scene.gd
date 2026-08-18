@@ -8,6 +8,9 @@ extends Node2D
 @onready var last_damage_label: Label = $UI/Control/LastDamageLabel
 
 func _ready():
+	if not GameManager.game_started:
+		GameManager.game_started = true
+		WaveManager.start_day()
 	EventBus.player_damaged.connect(_on_player_damaged)
 
 func _on_player_damaged(damage: float):

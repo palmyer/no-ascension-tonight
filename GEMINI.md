@@ -22,7 +22,7 @@
 - `res://src/entities/`: 具体实体 (Player, Core, Enemies)
 - `res://src/ui/`: 界面相关
 - `res://src/tests/`: 测试场景脚本
-- `res://scenes/`: 场景文件 (.tscn)，按实体、世界、武器、测试分组
+- `res://scenes/`: 场景文件 (.tscn)，按 UI、关卡、实体、世界、武器、测试分组
 - `res://assets/textures/`: 运行时纹理，按用途分组
 
 ## 4. 命名规范
