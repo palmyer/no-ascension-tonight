@@ -29,19 +29,36 @@ func _on_level_up(_new_level: int):
 		child.queue_free()
 	
 	var pool = upgrades.duplicate()
+	for attribute_id in GameManager.ATTRIBUTE_ORDER:
+		var definition: Dictionary = GameManager.ATTRIBUTE_DEFINITIONS[attribute_id]
+		pool.append({
+			"name": "%s·%s" % [definition.get("name", attribute_id), definition.get("display_name", attribute_id)],
+			"type": "attribute",
+			"attribute_id": attribute_id,
+			"value": 3,
+			"description": definition.get("description", "")
+		})
 	pool.shuffle()
 	
 	for i in range(3):
 		var up = pool[i]
 		var btn = Button.new()
-		btn.text = up["name"] + "\n(+" + str(up["value"]) + ")"
+		btn.text = str(up["name"])
+		var description := str(up.get("description", ""))
+		if not description.is_empty():
+			btn.text += "\n" + description
+		btn.text += "\n(+" + str(up["value"]) + ")"
+		btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		btn.custom_minimum_size = Vector2(200, 300)
 		btn.pressed.connect(_on_card_selected.bind(up))
 		card_container.add_child(btn)
 
 func _on_card_selected(upgrade):
 	# 应用属性
-	GameManager.apply_card_upgrade(upgrade["stat"], upgrade["value"])
+	if upgrade.get("type", "stat") == "attribute":
+		GameManager.apply_attribute_upgrade(upgrade["attribute_id"], int(upgrade["value"]))
+	else:
+		GameManager.apply_card_upgrade(upgrade["stat"], upgrade["value"])
 	# 恢复游戏
 	visible = false
 	get_tree().paused = false

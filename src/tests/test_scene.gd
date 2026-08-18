@@ -62,5 +62,6 @@ func update_ui():
 	var line_bot = "[BASE] HP:%d DMG:%d%% SPD:%d%% ARM:%d BUL:%d" % [
 		base.max_health, base.damage_pct, base.move_speed, base.armor, base.bullet_count
 	]
+	var attribute_line := "[ATTR] " + GameManager.get_attribute_summary()
 	
-	stats_label.text = "%s\n%s\n%s" % [line_top, line_mid, line_bot]
+	stats_label.text = "%s\n%s\n%s\n%s" % [line_top, line_mid, line_bot, attribute_line]

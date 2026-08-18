@@ -35,7 +35,8 @@ func _process(delta: float):
 	if is_attracted or dist < current_attract_dist:
 		is_attracted = true
 		var direction = global_position.direction_to(player.global_position)
-		global_position += direction * attract_speed * delta
+		var attract_speed_multiplier: float = 1.0 + float(GameManager.current_stats.get("orb_attract_speed_pct", 0.0)) / 100.0
+		global_position += direction * attract_speed * attract_speed_multiplier * delta
 		# 越靠近越快
 		attract_speed += 500 * delta
 

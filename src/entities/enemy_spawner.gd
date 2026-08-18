@@ -4,34 +4,47 @@ class_name EnemySpawner
 @export var enemy_scene: PackedScene
 @export var spawn_radius: float = 500.0
 
-@export var spawn_interval: float = 1.0 # 缩短生成间隔
-@export var enemies_per_spawn: int = 2   # 每次生成的数量
+@export var spawn_interval: float = 1.0
+@export var enemies_per_spawn: int = 1
 
 var spawn_timer: float = 0.0
+var tracked_wave: int = -1
+var tracked_state: int = -1
+var phase_spawned: int = 0
 
 func _process(delta: float):
-	if GameManager.current_state == GameManager.GameState.SHOP:
+	if not GameManager.game_started:
+		return
+	var state := GameManager.current_state
+	if state != GameManager.GameState.DAY and state != GameManager.GameState.NIGHT:
+		return
+
+	if tracked_wave != GameManager.current_wave or tracked_state != state:
+		tracked_wave = GameManager.current_wave
+		tracked_state = state
+		phase_spawned = 0
+		spawn_timer = 0.0
+
+	var is_night := state == GameManager.GameState.NIGHT
+	var phase_budget := WaveManager.get_spawn_budget(is_night)
+	if phase_spawned >= phase_budget:
 		return
 
 	spawn_timer -= delta
 	if spawn_timer <= 0:
-		for i in range(enemies_per_spawn):
-			spawn_enemy()
-		# 随着波数略微提升生成强度
-		var interval_reduction = (GameManager.current_wave - 1) * 0.05
-		spawn_timer = max(0.2, spawn_interval - interval_reduction)
+		var batch_size: int = maxi(WaveManager.get_spawn_batch_size(), enemies_per_spawn)
+		var remaining: int = phase_budget - phase_spawned
+		var spawn_count: int = mini(batch_size, remaining)
+		for i in range(spawn_count):
+			if spawn_enemy():
+				phase_spawned += 1
+		spawn_timer = WaveManager.get_spawn_interval()
 
-func spawn_enemy():
+func spawn_enemy() -> bool:
 	if not enemy_scene:
-		return
+		return false
 
-	# 计算可用方向 (排除已斩首的方向)
-	var available_directions = []
-	if not GameManager.boss_states.get("RedCrack", false): available_directions.append(0) # North
-	# TODO: Add other directions when implemented
-	# Temporarily allow all if none matched
-	if available_directions.size() == 0:
-		available_directions = [0, 1, 2, 3]
+	var available_directions: Array = WaveManager.get_active_spawn_directions()
 
 	var spawn_dir = available_directions.pick_random()
 	var angle = 0.0
@@ -41,42 +54,39 @@ func spawn_enemy():
 		2: angle = 0.0   # East
 		3: angle = PI    # West
 
-	# 增加角度随机范围，从 0.5 增加到 0.8，让散布更广
 	angle += randf_range(-0.8, 0.8)
 
-	# 确保生成的点在正方形边缘内
-	var R = spawn_radius
+	var radius := spawn_radius
 	var pos = Vector2.ZERO
 
 	var dir = Vector2.from_angle(angle)
 	var t = 0.0
 	if abs(dir.x) > abs(dir.y):
-		t = R / abs(dir.x)
+		t = radius / abs(dir.x)
 	else:
-		t = R / abs(dir.y)
+		t = radius / abs(dir.y)
 
 	pos = dir * t
 
-	# 增加位置随机偏移 (Jitter)，防止完全堆在一条线上
 	var jitter = Vector2(randf_range(-50, 50), randf_range(-50, 50))
 	pos += jitter
 
-	# 确保最终位置不会超出 1000 的物理边界太远 (保持在 0.98 以内)
-	pos.x = clamp(pos.x, -R * 0.98, R * 0.98)
-	pos.y = clamp(pos.y, -R * 0.98, R * 0.98)
+	pos.x = clamp(pos.x, -radius * 0.98, radius * 0.98)
+	pos.y = clamp(pos.y, -radius * 0.98, radius * 0.98)
 
 	var enemy = enemy_scene.instantiate()
-
-	# 四种敌人平均分布：各 25%
-	var roll = randf()
-	if roll < 0.25:
-		enemy.enemy_type = Enemy.EnemyType.MELEE
-	elif roll < 0.5:
-		enemy.enemy_type = Enemy.EnemyType.ARROW
-	elif roll < 0.75:
-		enemy.enemy_type = Enemy.EnemyType.MAGIC
-	else:
-		enemy.enemy_type = Enemy.EnemyType.HEAL
+	enemy.enemy_type = pick_enemy_type()
 
 	enemy.global_position = global_position + pos
 	get_parent().add_child(enemy)
+	return true
+
+func pick_enemy_type() -> Enemy.EnemyType:
+	var weights: Array = WaveManager.get_enemy_type_weights()
+	var roll := randf()
+	var cumulative := 0.0
+	for index in range(min(weights.size(), 4)):
+		cumulative += float(weights[index])
+		if roll < cumulative:
+			return index
+	return Enemy.EnemyType.MELEE

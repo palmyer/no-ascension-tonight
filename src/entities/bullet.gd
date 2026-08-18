@@ -5,6 +5,7 @@ class_name Bullet
 @export var damage: float = 20.0
 @export var lifetime: float = 2.0
 @export var color: Color = Color.GOLD
+var attribute_payload: Dictionary = {}
 
 @onready var hitbox: HitboxComponent = $HitboxComponent
 
@@ -26,5 +27,9 @@ func _physics_process(delta: float):
 		queue_free()
 
 func _on_hitbox_component_area_entered(_area: Area2D):
+	if _area is HurtboxComponent:
+		var target := _area.get_parent()
+		if target and target.has_method("apply_attribute_payload"):
+			target.apply_attribute_payload(attribute_payload, damage, global_position)
 	# 击中目标后消失
 	queue_free()

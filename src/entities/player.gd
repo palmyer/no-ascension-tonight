@@ -7,6 +7,7 @@ const BLADE_TEXTURE = preload("res://assets/textures/weapons/weapon_blade.png")
 const SPEAR_TEXTURE = preload("res://assets/textures/weapons/weapon_spear.png")
 const MUSKET_TEXTURE = preload("res://assets/textures/weapons/weapon_flute.png")
 const PROJECTILE_SCENE = preload("res://scenes/entities/projectiles/bullet.tscn")
+const BASE_ATTACK_RANGE := 1600.0
 
 var can_slash := true
 
@@ -153,7 +154,7 @@ func _process_ranged_attack(delta: float) -> void:
 		return
 
 	var distance_to_target := global_position.distance_to(target_enemy.global_position)
-	if distance_to_target > ranged_attack_range:
+	if distance_to_target > _get_ranged_attack_range():
 		return
 
 	if sword_pivot:
@@ -164,7 +165,7 @@ func _process_ranged_attack(delta: float) -> void:
 		ranged_attack_timer = ranged_cooldown / attack_speed_multiplier
 
 func _fire_ranged_projectile(target: Node2D) -> void:
-	var damage_multiplier: float = 1.0 + GameManager.current_stats.get("damage_pct", 0.0) / 100.0
+	var damage_multiplier := _get_damage_multiplier()
 	var projectile_count: int = maxi(int(GameManager.current_stats.get("bullet_count", 1)), 1)
 	var target_angle := global_position.direction_to(target.global_position).angle()
 	var spread_step := deg_to_rad(8.0)
@@ -175,6 +176,7 @@ func _fire_ranged_projectile(target: Node2D) -> void:
 		projectile.damage = weapon_damage * damage_multiplier
 		projectile.speed = 680.0
 		projectile.color = Color("f3b85d")
+		projectile.attribute_payload = GameManager.get_attack_attribute_payload().duplicate(true)
 		projectile.global_position = global_position
 		projectile.rotation = target_angle + spread_offset
 		get_tree().root.add_child(projectile)
@@ -193,6 +195,7 @@ func apply_runtime_stats(stats: Dictionary) -> void:
 
 	if hurtbox_component:
 		hurtbox_component.flat_damage_reduction = maxf(float(stats.get("armor", 0.0)), 0.0)
+		hurtbox_component.low_health_damage_reduction = maxf(float(stats.get("low_health_damage_reduction", 0.0)), 0.0)
 
 func _process_regeneration(delta: float) -> void:
 	if not health_component:
@@ -214,6 +217,16 @@ func _get_attack_speed_multiplier() -> float:
 
 func _get_attack_duration(base_duration: float) -> float:
 	return base_duration / _get_attack_speed_multiplier()
+
+func _get_damage_multiplier() -> float:
+	var damage_pct: float = float(GameManager.current_stats.get("damage_pct", 0.0))
+	if not GameManager.player_in_aura:
+		damage_pct += float(GameManager.current_stats.get("outside_aura_damage_pct", 0.0))
+	return maxf(1.0 + damage_pct / 100.0, 0.0)
+
+func _get_ranged_attack_range() -> float:
+	var range_bonus := maxf(float(GameManager.current_stats.get("attack_range", BASE_ATTACK_RANGE)) - BASE_ATTACK_RANGE, 0.0)
+	return ranged_attack_range + range_bonus
 
 func _draw() -> void:
 	if not debug_attack_visual:
@@ -247,7 +260,7 @@ func _get_nearest_enemy() -> Node2D:
 
 func _get_attack_trigger_range() -> float:
 	if uses_ranged_weapon:
-		return ranged_attack_range
+		return _get_ranged_attack_range()
 	if not sword_hitbox:
 		return 80.0
 	var center_dist: float = global_position.distance_to(sword_hitbox.global_position)
@@ -270,7 +283,7 @@ func _get_attack_trigger_range() -> float:
 func _get_melee_range_bonus() -> float:
 	if not get_node_or_null("/root/GameManager"):
 		return 0.0
-	var ranged_bonus: float = GameManager.current_stats.get("attack_range", 600.0) - 600.0
+	var ranged_bonus: float = GameManager.current_stats.get("attack_range", BASE_ATTACK_RANGE) - BASE_ATTACK_RANGE
 	return max(ranged_bonus * 0.5, 0.0)
 
 func _prepare_sword_range_extension() -> void:
@@ -340,11 +353,15 @@ func _apply_slash_hit(body: Node2D) -> void:
 		return
 	slash_hit_targets[body_id] = true
 	if body.has_method("take_damage"):
-		var damage_multiplier: float = 1.0 + GameManager.current_stats.get("damage_pct", 0.0) / 100.0
-		body.take_damage(weapon_damage * damage_multiplier)
+		var attack_damage := weapon_damage * _get_damage_multiplier()
+		body.take_damage(attack_damage)
+		if body.has_method("apply_attribute_payload"):
+			body.apply_attribute_payload(GameManager.get_attack_attribute_payload(), attack_damage, global_position)
 
 func take_damage(amount: float) -> void:
 	var final_damage := maxf(amount - float(GameManager.current_stats.get("armor", 0.0)), 0.0)
+	if hurtbox_component:
+		final_damage = hurtbox_component.get_final_damage(amount)
 	if health_component:
 		health_component.damage(final_damage)
 	if get_node_or_null("/root/EventBus"):

@@ -1,0 +1,185 @@
+extends Node
+class_name AttributeStatusComponent
+
+const REACTION_COOLDOWN := 0.35
+
+var health_component: HealthComponent
+var statuses: Dictionary = {}
+var reaction_cooldowns: Dictionary = {}
+var frozen_time: float = 0.0
+var stunned_time: float = 0.0
+
+func _ready() -> void:
+	if not health_component:
+		health_component = get_parent().get_node_or_null("HealthComponent")
+
+func _process(delta: float) -> void:
+	frozen_time = maxf(frozen_time - delta, 0.0)
+	stunned_time = maxf(stunned_time - delta, 0.0)
+	for reaction_id in reaction_cooldowns.keys():
+		reaction_cooldowns[reaction_id] = float(reaction_cooldowns[reaction_id]) - delta
+		if reaction_cooldowns[reaction_id] <= 0.0:
+			reaction_cooldowns.erase(reaction_id)
+	_tick_statuses(delta)
+
+func apply_payload(payload: Dictionary, attack_damage: float = 0.0, origin: Vector2 = Vector2.ZERO) -> void:
+	for attribute_id in payload:
+		_apply_attribute(str(attribute_id), int(payload[attribute_id]), attack_damage, origin)
+
+func _apply_attribute(attribute_id: String, mastery_level: int, attack_damage: float, origin: Vector2) -> void:
+	if health_component and health_component.current_health <= 0.0:
+		return
+	if not GameManager.ATTRIBUTE_DEFINITIONS.has(attribute_id):
+		return
+
+	var existing_ids: Array = statuses.keys()
+	for existing_id in existing_ids:
+		if existing_id == attribute_id:
+			continue
+		var reaction := GameManager.get_attribute_reaction(str(existing_id), attribute_id)
+		if not reaction.is_empty():
+			_trigger_reaction(reaction, str(existing_id), attribute_id, mastery_level, attack_damage, origin)
+
+	var definition: Dictionary = GameManager.ATTRIBUTE_DEFINITIONS[attribute_id]
+	var status: Dictionary = statuses.get(attribute_id, {"stacks": 0, "time": 0.0, "tick_time": 0.0, "mastery": 0})
+	var mastery_bonus := maxi(mastery_level - 1, 0)
+	status["stacks"] = mini(int(status.get("stacks", 0)) + 1, int(definition.get("max_stacks", 1)) + mastery_bonus)
+	var duration_multiplier := 1.0 + mastery_bonus * 0.15
+	status["time"] = maxf(float(status.get("time", 0.0)), float(definition.get("duration", 2.0)) * duration_multiplier)
+	status["mastery"] = maxi(int(status.get("mastery", 0)), mastery_level)
+	statuses[attribute_id] = status
+
+func _tick_statuses(delta: float) -> void:
+	if health_component and health_component.current_health <= 0.0:
+		return
+	var target := get_parent()
+	for attribute_id in statuses.keys():
+		var status: Dictionary = statuses[attribute_id]
+		status["time"] = float(status.get("time", 0.0)) - delta
+		status["tick_time"] = float(status.get("tick_time", 0.0)) - delta
+		var definition: Dictionary = GameManager.ATTRIBUTE_DEFINITIONS.get(attribute_id, {})
+		var tick_damage := float(definition.get("tick_damage", 0.0))
+		if tick_damage > 0.0 and float(status["tick_time"]) <= 0.0 and target.has_method("take_damage"):
+			if health_component and health_component.current_health <= 0.0:
+				return
+			var mastery_multiplier := 1.0 + maxi(int(status.get("mastery", 1)) - 1, 0) * 0.15
+			target.take_damage(tick_damage * int(status.get("stacks", 1)) * mastery_multiplier)
+			status["tick_time"] = 1.0
+		if float(status["time"]) <= 0.0:
+			statuses.erase(attribute_id)
+		else:
+			statuses[attribute_id] = status
+
+func _trigger_reaction(reaction: Dictionary, first_attribute: String, second_attribute: String, mastery_level: int, attack_damage: float, origin: Vector2) -> void:
+	if health_component and health_component.current_health <= 0.0:
+		return
+	var reaction_id := str(reaction.get("id", ""))
+	if reaction_id.is_empty() or reaction_cooldowns.has(reaction_id):
+		return
+
+	var target := get_parent()
+	if not target.has_method("take_damage"):
+		return
+	var first_mastery := int(statuses.get(first_attribute, {}).get("mastery", 1))
+	var mastery_multiplier := 1.0 + float(first_mastery + mastery_level - 2) * 0.12
+	reaction_cooldowns[reaction_id] = REACTION_COOLDOWN / mastery_multiplier
+	var reaction_damage := maxf(1.0, attack_damage * float(reaction.get("damage_multiplier", 0.5)) * mastery_multiplier)
+	target.take_damage(reaction_damage)
+
+	match str(reaction.get("effect", "")):
+		"burst":
+			_damage_nearby_targets(reaction_damage * 0.35)
+			_apply_knockback(origin, 28.0 + mastery_multiplier * 8.0)
+			stunned_time = maxf(stunned_time, 0.25)
+		"chain":
+			_chain_damage(reaction_damage * 0.45, int(reaction.get("chain_count", 2)))
+		"burn":
+			_apply_attribute("fire", mastery_level, reaction_damage * 0.25, origin)
+		"freeze", "shatter":
+			frozen_time = maxf(frozen_time, 0.8 + mastery_multiplier * 0.4)
+		"stun", "stagger":
+			stunned_time = maxf(stunned_time, 0.55 + mastery_multiplier * 0.25)
+		"spread":
+			_spread_attribute(second_attribute, reaction_damage * 0.25)
+
+func _damage_nearby_targets(damage: float) -> void:
+	var target := get_parent() as Node2D
+	if not target:
+		return
+	for other in get_tree().get_nodes_in_group("DamageableEnemy"):
+		if other == target or not is_instance_valid(other) or not (other is Node2D):
+			continue
+		var other_health: HealthComponent = other.get_node_or_null("HealthComponent")
+		if other_health and other_health.current_health <= 0.0:
+			continue
+		if target.global_position.distance_to(other.global_position) <= 120.0 and other.has_method("take_damage"):
+			other.take_damage(damage)
+
+func _spread_attribute(attribute_id: String, attack_damage: float) -> void:
+	var target := get_parent() as Node2D
+	if not target:
+		return
+	for other in get_tree().get_nodes_in_group("DamageableEnemy"):
+		if other == target or not is_instance_valid(other) or not (other is Node2D):
+			continue
+		if target.global_position.distance_to(other.global_position) > 150.0:
+			continue
+		if other.has_method("apply_attribute_payload"):
+			other.apply_attribute_payload({attribute_id: 1}, attack_damage)
+
+func _chain_damage(damage: float, jump_count: int) -> void:
+	var target := get_parent() as Node2D
+	if not target:
+		return
+	var candidates: Array = []
+	for other in get_tree().get_nodes_in_group("DamageableEnemy"):
+		if other == target or not is_instance_valid(other) or not (other is Node2D):
+			continue
+		var other_health: HealthComponent = other.get_node_or_null("HealthComponent")
+		if other_health and other_health.current_health <= 0.0:
+			continue
+		if target.global_position.distance_to(other.global_position) <= 180.0 and other.has_method("take_damage"):
+			candidates.append(other)
+
+	for _jump in range(mini(candidates.size(), jump_count)):
+		var nearest: Node = null
+		var nearest_distance := INF
+		for candidate in candidates:
+			var candidate_distance := target.global_position.distance_to(candidate.global_position)
+			if candidate_distance < nearest_distance:
+				nearest_distance = candidate_distance
+				nearest = candidate
+		if not nearest:
+			break
+		nearest.take_damage(damage)
+		candidates.erase(nearest)
+
+func _apply_knockback(origin: Vector2, distance: float) -> void:
+	var target := get_parent() as Node2D
+	if not target:
+		return
+	var direction := origin.direction_to(target.global_position) if origin != Vector2.ZERO else Vector2.RIGHT
+	if direction == Vector2.ZERO:
+		direction = Vector2.RIGHT
+	target.global_position += direction * distance
+
+func get_speed_multiplier() -> float:
+	if frozen_time > 0.0 or stunned_time > 0.0:
+		return 0.0
+	var multiplier := 1.0
+	if statuses.has("vine"):
+		var vine_mastery := int(statuses["vine"].get("mastery", 1))
+		multiplier *= maxf(0.5, 0.65 - maxi(vine_mastery - 1, 0) * 0.05)
+	if statuses.has("ice"):
+		var ice_mastery := int(statuses["ice"].get("mastery", 1))
+		multiplier *= maxf(0.4, 0.55 - maxi(ice_mastery - 1, 0) * 0.05)
+	return multiplier
+
+func is_disabled() -> bool:
+	return frozen_time > 0.0 or stunned_time > 0.0
+
+func get_healing_received_multiplier() -> float:
+	var poison_status: Dictionary = statuses.get("poison", {})
+	if poison_status.is_empty():
+		return 1.0
+	return maxf(1.0 - int(poison_status.get("stacks", 0)) * 0.15, 0.25)

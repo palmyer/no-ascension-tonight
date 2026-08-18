@@ -2,6 +2,7 @@ extends Area2D
 class_name GateZone
 
 @export var gate_name: String = "North Gate"
+@export var boss_id: String = ""
 @export var activation_time: float = 5.0
 @export var boss_scene: PackedScene
 
@@ -62,13 +63,14 @@ func update_ui():
 		fg.size.x = (charge_timer / activation_time) * 100.0
 
 func activate_gate():
+	if boss_id.is_empty() or not WaveManager.try_spawn_boss(boss_id, boss_scene, global_position):
+		charge_timer = 0.0
+		update_ui()
+		print("[GATE] %s is not available at wave %d" % [gate_name, GameManager.current_wave])
+		return
+
 	is_activated = true
-	print("[GATE] %s Activated! Boss Summing..." % gate_name)
-	
-	if boss_scene:
-		var boss = boss_scene.instantiate()
-		boss.global_position = global_position
-		get_parent().add_child(boss)
+	print("[GATE] %s Activated! %s summoned" % [gate_name, boss_id])
 	
 	# Hide UI
 	label.visible = false

@@ -23,6 +23,9 @@ var shoot_timer: float = 0.0
 var heal_timer: float = 0.0
 var melee_attack_timer: float = 0.0
 var health_label: Label
+var enemy_level: int = 1
+var wave_damage_multiplier: float = 1.0
+var attribute_component: AttributeStatusComponent
 
 @export var orb_scene: PackedScene = preload("res://scenes/entities/pickups/spirit_orb.tscn")
 @onready var bullet_pkg: PackedScene = load(bullet_scene_path)
@@ -61,29 +64,29 @@ func _ready():
 			aggro_range = 250.0
 
 
-	var base_health = 10.0
+	var scaling := WaveManager.get_enemy_scaling(GameManager.current_state == GameManager.GameState.NIGHT)
+	enemy_level = int(scaling.get("level", 1))
+	wave_damage_multiplier = float(scaling.get("damage", 1.0))
+	speed *= float(scaling.get("speed", 1.0))
+	$HitboxComponent.damage *= wave_damage_multiplier
+	if enemy_type == EnemyType.HEAL:
+		heal_amount *= float(scaling.get("heal", 1.0))
+
+	var base_health := 10.0
 	match enemy_type:
 		EnemyType.MELEE: base_health = 15.0
 		EnemyType.HEAL:  base_health = 8.0
 
-	var scaled_health = base_health + (GameManager.current_wave - 1) * 5.0
+	var scaled_health := base_health * float(scaling.get("health", 1.0))
 	health_component.max_health = scaled_health
 	health_component.current_health = scaled_health
+	attribute_component = AttributeStatusComponent.new()
+	attribute_component.health_component = health_component
+	add_child(attribute_component)
 
 	health_component.died.connect(_on_died)
 	player = get_tree().get_first_node_in_group("Player")
 	core = get_tree().get_first_node_in_group("LifeCore")
-
-	if not GameManager.boss_states["RedCrack"] and GameManager.current_state == GameManager.GameState.NIGHT:
-		var multiplier = 1.0
-		if GameManager.current_wave <= 6:
-			multiplier = 1.2
-		elif GameManager.current_wave <= 13:
-			multiplier = 1.5
-		else:
-			multiplier = 2.0
-
-		$HitboxComponent.damage *= multiplier
 
 	setup_debug_ui()
 
@@ -94,6 +97,10 @@ func setup_debug_ui():
 	health_label.add_theme_font_size_override("font_size", 14)
 	add_child(health_label)
 
+func apply_attribute_payload(payload: Dictionary, attack_damage: float = 0.0, origin: Vector2 = Vector2.ZERO) -> void:
+	if attribute_component:
+		attribute_component.apply_payload(payload, attack_damage, origin)
+
 func play_attack_anim():
 	var st = create_tween()
 	st.tween_property(self, "scale", Vector2(1.25, 0.75), 0.1)
@@ -102,7 +109,10 @@ func play_attack_anim():
 func _physics_process(delta: float):
 	if health_label:
 		health_label.visible = GameManager.debug_mode
-		health_label.text = str(int(health_component.current_health))
+		health_label.text = "L%d %d" % [enemy_level, int(health_component.current_health)]
+	if attribute_component and attribute_component.is_disabled():
+		velocity = Vector2.ZERO
+		return
 
 	if not player: player = get_tree().get_first_node_in_group("Player")
 	if not core: core = get_tree().get_first_node_in_group("LifeCore")
@@ -112,13 +122,14 @@ func _physics_process(delta: float):
 	var dist_to_player = global_position.distance_to(player.global_position)
 	var current_aggro = aggro_range
 	var is_night = GameManager.current_state == GameManager.GameState.NIGHT
+	var status_speed_multiplier := attribute_component.get_speed_multiplier() if attribute_component else 1.0
 
 	if is_night:
 		current_aggro = aggro_range * 2.0
 
 	# HEAL enemy: periodically heal nearby allies
 	if enemy_type == EnemyType.HEAL:
-		heal_timer -= delta
+		heal_timer -= delta * maxf(status_speed_multiplier, 0.1)
 		if heal_timer <= 0:
 			if heal_nearby_enemies():
 				play_attack_anim()
@@ -130,7 +141,7 @@ func _physics_process(delta: float):
 	if enemy_type == EnemyType.HEAL:
 		if dist_to_player < current_aggro:
 			var flee_dir = global_position.direction_to(player.global_position)
-			velocity = -flee_dir * speed
+			velocity = -flee_dir * speed * status_speed_multiplier
 			move_and_slide()
 			return
 		elif is_night and core:
@@ -162,7 +173,7 @@ func _physics_process(delta: float):
 
 	if active_chase:
 		var direction = global_position.direction_to(move_target)
-		var final_speed = speed
+		var final_speed = speed * status_speed_multiplier
 		var is_ranged = (enemy_type == EnemyType.ARROW or enemy_type == EnemyType.MAGIC)
 		if is_ranged and dist_to_player < shoot_range * 0.5:
 			final_speed *= 0.5
@@ -195,7 +206,8 @@ func heal_nearby_enemies() -> bool:
 
 func receive_heal(amount: float):
 	if is_instance_valid(health_component):
-		health_component.heal(amount)
+		var healing_multiplier := attribute_component.get_healing_received_multiplier() if attribute_component else 1.0
+		health_component.heal(amount * healing_multiplier)
 
 func shoot_at_player():
 	if not bullet_pkg or not player: return
@@ -221,15 +233,7 @@ func shoot_at_player():
 			bullet_color = Color.WHITE
 			bullet_speed = 600.0
 
-	if not GameManager.boss_states["RedCrack"] and GameManager.current_state == GameManager.GameState.NIGHT:
-		var multiplier = 1.0
-		if GameManager.current_wave <= 6:
-			multiplier = 1.2
-		elif GameManager.current_wave <= 13:
-			multiplier = 1.5
-		else:
-			multiplier = 2.0
-		base_damage *= multiplier
+	base_damage *= wave_damage_multiplier
 
 	bullet.damage = base_damage
 	bullet.color = bullet_color
@@ -244,6 +248,8 @@ func shoot_at_player():
 	get_tree().root.add_child(bullet)
 
 func take_damage(amount: float) -> void:
+	if health_component.current_health <= 0.0:
+		return
 	health_component.damage(amount)
 
 func _on_died():

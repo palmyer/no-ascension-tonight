@@ -16,11 +16,20 @@ var current_state: State = State.CHASE
 var target: Node2D
 var timer: float = 0.0
 var charge_direction: Vector2 = Vector2.ZERO
+var boss_id: String = "RedCrack"
+var boss_display_name: String = "赤裂大妖"
+var boss_stats: Dictionary = {}
+var attribute_component: AttributeStatusComponent
 
 var health_label: Label
 @onready var slash_visual: ColorRect = $WeaponPivot/SlashVisual
 @onready var contact_hitbox: Area2D = $ContactHitbox
 @onready var dash_hitbox: Area2D = $WeaponPivot/HitboxComponent
+
+func configure_boss(configured_id: String, configured_stats: Dictionary) -> void:
+	boss_id = configured_id
+	boss_stats = configured_stats.duplicate(true)
+	boss_display_name = str(boss_stats.get("display_name", boss_id))
 
 func _ready():
 	add_to_group("Enemy")
@@ -28,10 +37,22 @@ func _ready():
 	add_to_group("Boss")
 	z_index = -1
 	
-	# Boss stats
-	var scaled_health = 500.0 + (GameManager.current_wave - 1) * 100.0
+	if boss_stats.is_empty():
+		boss_stats = WaveManager.get_boss_stats(boss_id)
+	boss_display_name = str(boss_stats.get("display_name", boss_id))
+	speed = float(boss_stats.get("speed", speed))
+	charge_aim_time = float(boss_stats.get("charge_aim_time", charge_aim_time))
+	charge_cooldown = float(boss_stats.get("charge_cooldown", charge_cooldown))
+	contact_hitbox.damage = float(boss_stats.get("contact_damage", contact_hitbox.damage))
+	dash_hitbox.damage = float(boss_stats.get("dash_damage", dash_hitbox.damage))
+	apply_variant_visual()
+
+	var scaled_health := float(boss_stats.get("health", 500.0))
 	health_component.max_health = scaled_health
 	health_component.current_health = scaled_health
+	attribute_component = AttributeStatusComponent.new()
+	attribute_component.health_component = health_component
+	add_child(attribute_component)
 	
 	health_component.died.connect(_on_died)
 	target = get_tree().get_first_node_in_group("Player")
@@ -53,10 +74,17 @@ func setup_debug_ui():
 		health_label.add_theme_font_size_override("font_size", 20)
 		add_child(health_label)
 
+func apply_attribute_payload(payload: Dictionary, attack_damage: float = 0.0, origin: Vector2 = Vector2.ZERO) -> void:
+	if attribute_component:
+		attribute_component.apply_payload(payload, attack_damage, origin)
+
 func _physics_process(delta: float):
 	if health_label:
 		health_label.visible = GameManager.debug_mode
-		health_label.text = "RED CRACK: " + str(int(health_component.current_health)) + "/" + str(int(health_component.max_health))
+		health_label.text = boss_display_name + ": " + str(int(health_component.current_health)) + "/" + str(int(health_component.max_health))
+	if attribute_component and attribute_component.is_disabled():
+		velocity = Vector2.ZERO
+		return
 
 	if not target:
 		target = get_tree().get_first_node_in_group("Player")
@@ -66,11 +94,12 @@ func _physics_process(delta: float):
 	check_contact_damage()
 	# 水平翻转面向玩家
 	$Placeholder.scale.x = -1.0 if target.global_position.x < global_position.x else 1.0
+	var status_speed_multiplier := attribute_component.get_speed_multiplier() if attribute_component else 1.0
 
 	match current_state:
 		State.CHASE:
 			var direction = global_position.direction_to(target.global_position)
-			velocity = direction * speed
+			velocity = direction * speed * status_speed_multiplier
 			move_and_slide()
 			$WeaponPivot.rotation = direction.angle()
 			
@@ -96,7 +125,7 @@ func _physics_process(delta: float):
 				start_charge()
 
 		State.CHARGING:
-			velocity = charge_direction * charge_dash_speed
+			velocity = charge_direction * charge_dash_speed * status_speed_multiplier
 			move_and_slide()
 			
 			# 冲锋实时伤害检测
@@ -152,13 +181,23 @@ func stop_charge():
 	current_state = State.COOLDOWN
 	timer = 1.0
 
+func apply_variant_visual() -> void:
+	match boss_id:
+		"GreenPlague": $Placeholder.color = Color("4b9a65")
+		"BlueArc": $Placeholder.color = Color("4c82c4")
+		"YellowSand": $Placeholder.color = Color("c79a4d")
+		"AscensionKing": $Placeholder.color = Color("b94fbd")
+		_: $Placeholder.color = Color("c43f46")
+
 
 func take_damage(amount: float) -> void:
+	if health_component.current_health <= 0.0:
+		return
 	health_component.damage(amount)
 
 func _on_died():
-	print("[BOSS] Red Crack Defeated!")
-	EventBus.emit_signal("boss_defeated", "RedCrack")
+	print("[BOSS] %s Defeated!" % boss_display_name)
+	EventBus.emit_signal("boss_defeated", boss_id)
 	queue_free()
 
 func _on_hurtbox_component_hit(damage: float):
