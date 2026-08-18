@@ -19,8 +19,10 @@ var ranged_attack_timer := 0.0
 var ranged_attack_range := 760.0
 var ranged_cooldown := 0.8
 var melee_range_multiplier := 1.0
+var regeneration_timer := 0.0
 
 @onready var health_component: HealthComponent = get_node_or_null("HealthComponent")
+@onready var hurtbox_component: HurtboxComponent = get_node_or_null("HurtboxComponent")
 @onready var sword_pivot: Node2D = $Sprite2D/SwordPivot
 @onready var sword_anim: AnimationPlayer = $Sprite2D/SwordPivot/sword/AnimationPlayer
 @onready var sword_sprite: Sprite2D = $Sprite2D/SwordPivot/sword
@@ -42,6 +44,7 @@ func _ready() -> void:
 	if health_component:
 		health_component.health_changed.connect(_on_health_changed)
 		health_component.died.connect(_on_died)
+		apply_runtime_stats(GameManager.current_stats)
 		_on_health_changed(health_component.current_health, health_component.max_health)
 	if sword_anim and not sword_anim.animation_finished.is_connected(_on_animation_player_animation_finished):
 		sword_anim.animation_finished.connect(_on_animation_player_animation_finished)
@@ -76,8 +79,10 @@ func _on_health_changed(new_health: float, max_health: float) -> void:
 
 func _physics_process(delta: float) -> void:
 	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	velocity = input_dir * MOVE_SPEED
+	var move_speed_multiplier: float = maxf(1.0 + float(GameManager.current_stats.get("move_speed", 0.0)) / 100.0, 0.0)
+	velocity = input_dir * MOVE_SPEED * move_speed_multiplier
 	move_and_slide()
+	_process_regeneration(delta)
 
 	if uses_ranged_weapon:
 		_process_ranged_attack(delta)
@@ -100,7 +105,7 @@ func _physics_process(delta: float) -> void:
 				_prepare_sword_range_extension()
 				if sword_hitbox:
 					sword_hitbox.monitoring = true
-				sword_anim.speed_scale = sword_anim.get_animation("slash").length / slash_time
+				sword_anim.speed_scale = sword_anim.get_animation("slash").length / _get_attack_duration(slash_time)
 				sword_anim.play("slash")
 				can_slash = false
 
@@ -155,18 +160,60 @@ func _process_ranged_attack(delta: float) -> void:
 		sword_pivot.look_at(target_enemy.global_position)
 	if ranged_attack_timer <= 0.0:
 		_fire_ranged_projectile(target_enemy)
-		var attack_speed_multiplier: float = 1.0 + GameManager.current_stats.get("attack_speed", 0.0) / 100.0
+		var attack_speed_multiplier := _get_attack_speed_multiplier()
 		ranged_attack_timer = ranged_cooldown / attack_speed_multiplier
 
 func _fire_ranged_projectile(target: Node2D) -> void:
-	var projectile = PROJECTILE_SCENE.instantiate()
 	var damage_multiplier: float = 1.0 + GameManager.current_stats.get("damage_pct", 0.0) / 100.0
-	projectile.damage = weapon_damage * damage_multiplier
-	projectile.speed = 680.0
-	projectile.color = Color("f3b85d")
-	projectile.global_position = global_position
-	projectile.rotation = global_position.direction_to(target.global_position).angle()
-	get_tree().root.add_child(projectile)
+	var projectile_count: int = maxi(int(GameManager.current_stats.get("bullet_count", 1)), 1)
+	var target_angle := global_position.direction_to(target.global_position).angle()
+	var spread_step := deg_to_rad(8.0)
+
+	for index in range(projectile_count):
+		var projectile = PROJECTILE_SCENE.instantiate()
+		var spread_offset := (float(index) - float(projectile_count - 1) / 2.0) * spread_step
+		projectile.damage = weapon_damage * damage_multiplier
+		projectile.speed = 680.0
+		projectile.color = Color("f3b85d")
+		projectile.global_position = global_position
+		projectile.rotation = target_angle + spread_offset
+		get_tree().root.add_child(projectile)
+
+func apply_runtime_stats(stats: Dictionary) -> void:
+	if health_component:
+		var target_max_health := maxf(float(stats.get("max_health", health_component.max_health)), 1.0)
+		var previous_max_health := maxf(health_component.max_health, 1.0)
+		var health_ratio := clampf(health_component.current_health / previous_max_health, 0.0, 1.0)
+		var max_health_changed := not is_equal_approx(previous_max_health, target_max_health)
+		health_component.max_health = target_max_health
+		if max_health_changed:
+			health_component.current_health = target_max_health * health_ratio
+		if max_health_changed:
+			health_component.health_changed.emit(health_component.current_health, target_max_health)
+
+	if hurtbox_component:
+		hurtbox_component.flat_damage_reduction = maxf(float(stats.get("armor", 0.0)), 0.0)
+
+func _process_regeneration(delta: float) -> void:
+	if not health_component:
+		return
+	var regeneration_per_five_seconds: float = maxf(float(GameManager.current_stats.get("hp_regen_5s", 0.0)), 0.0)
+	if regeneration_per_five_seconds <= 0.0:
+		regeneration_timer = 0.0
+		return
+
+	regeneration_timer += delta
+	if regeneration_timer < 5.0:
+		return
+	var regeneration_ticks := floori(regeneration_timer / 5.0)
+	regeneration_timer -= float(regeneration_ticks) * 5.0
+	health_component.heal(regeneration_per_five_seconds * regeneration_ticks)
+
+func _get_attack_speed_multiplier() -> float:
+	return maxf(1.0 + float(GameManager.current_stats.get("attack_speed", 0.0)) / 100.0, 0.1)
+
+func _get_attack_duration(base_duration: float) -> float:
+	return base_duration / _get_attack_speed_multiplier()
 
 func _draw() -> void:
 	if not debug_attack_visual:
@@ -297,10 +344,11 @@ func _apply_slash_hit(body: Node2D) -> void:
 		body.take_damage(weapon_damage * damage_multiplier)
 
 func take_damage(amount: float) -> void:
+	var final_damage := maxf(amount - float(GameManager.current_stats.get("armor", 0.0)), 0.0)
 	if health_component:
-		health_component.damage(amount)
+		health_component.damage(final_damage)
 	if get_node_or_null("/root/EventBus"):
-		EventBus.player_damaged.emit(amount)
+		EventBus.player_damaged.emit(final_damage)
 
 func _on_hurtbox_component_hit(damage: float) -> void:
 	if get_node_or_null("/root/EventBus"):
@@ -316,7 +364,7 @@ func _on_animation_player_animation_finished(anim_name: StringName) -> void:
 	if anim_name == "slash":
 		if sword_hitbox:
 			sword_hitbox.monitoring = false
-		sword_anim.speed_scale = sword_anim.get_animation("sword_return").length / sword_return_time
+		sword_anim.speed_scale = sword_anim.get_animation("sword_return").length / _get_attack_duration(sword_return_time)
 		sword_anim.play("sword_return")
 	else:
 		can_slash = true

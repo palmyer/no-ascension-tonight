@@ -5,6 +5,7 @@ signal hit(damage: float)
 
 @export var health_component: HealthComponent
 @export var hit_cooldown: float = 1.0
+@export var flat_damage_reduction: float = 0.0
 
 var _source_cooldowns: Dictionary = {}
 
@@ -36,7 +37,8 @@ func _physics_process(delta: float) -> void:
 func _apply_hit_from_source(source_id: int, damage: float) -> void:
 	if _source_cooldowns.has(source_id):
 		return
+	var final_damage := maxf(damage - flat_damage_reduction, 0.0)
 	if health_component:
-		health_component.damage(damage)
-	hit.emit(damage)
+		health_component.damage(final_damage)
+	hit.emit(final_damage)
 	_source_cooldowns[source_id] = hit_cooldown

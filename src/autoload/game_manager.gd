@@ -110,6 +110,11 @@ func update_current_stats():
 		current_stats["move_speed"] += 15
 		current_stats["hp_regen_5s"] += 5.0 # 光环内5秒回5点
 
+
+	var player := get_tree().get_first_node_in_group("Player")
+	if player and player.has_method("apply_runtime_stats"):
+		player.apply_runtime_stats(current_stats)
+
 func level_up():
 	player_level += 1
 	total_orbs = 0 
