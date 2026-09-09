@@ -19,10 +19,12 @@ func _ready():
 func _on_area_entered(area: Area2D):
 	if area is HitboxComponent:
 		var hitbox = area as HitboxComponent
-		print("[DEBUG] Hurtbox (", name, ") hit by: ", area.name, " from ", area.owner.name if area.owner else area.get_parent().name, " Damage: ", hitbox.damage)
-		_apply_hit_from_source(area.get_instance_id(), hitbox.damage)
+		if get_node_or_null("/root/GameManager") and GameManager.debug_mode:
+			print("[DEBUG] Hurtbox (", name, ") hit by: ", area.name, " from ", area.owner.name if area.owner else area.get_parent().name, " Damage: ", hitbox.damage)
+		_apply_hit_from_source(hitbox)
 	else:
-		print("[DEBUG] Hurtbox (", name, ") entered by non-hitbox: ", area.name)
+		if get_node_or_null("/root/GameManager") and GameManager.debug_mode:
+			print("[DEBUG] Hurtbox (", name, ") entered by non-hitbox: ", area.name)
 
 func _physics_process(delta: float) -> void:
 	for source_id in _source_cooldowns.keys():
@@ -34,13 +36,26 @@ func _physics_process(delta: float) -> void:
 	for area in get_overlapping_areas():
 		if area is HitboxComponent:
 			var hitbox := area as HitboxComponent
-			_apply_hit_from_source(area.get_instance_id(), hitbox.damage)
+			_apply_hit_from_source(hitbox)
 
-func _apply_hit_from_source(source_id: int, damage: float) -> void:
+
+func _apply_hit_from_source(hitbox: HitboxComponent) -> void:
+	var source_id := hitbox.get_instance_id()
 	if _source_cooldowns.has(source_id):
 		return
-	var final_damage := get_final_damage(damage)
-	if health_component:
+	# Keep critical logic here so melee/ranged hitboxes share one damage pipeline.
+	var final_damage := get_final_damage(hitbox.damage)
+	hitbox.last_was_critical = false
+	if hitbox.critical_chance > 0.0 and randf() < hitbox.critical_chance:
+		final_damage *= maxf(hitbox.critical_multiplier, 1.0)
+		hitbox.last_was_critical = true
+		if hitbox.critical_explosion_radius > 0.0 and hitbox.critical_explosion_damage_pct > 0.0:
+			GameManager.spawn_burst_damage(global_position, hitbox.critical_explosion_radius, final_damage * hitbox.critical_explosion_damage_pct, {}, hitbox.critical_color)
+	hitbox.last_applied_damage = final_damage
+	var owner_node := get_parent()
+	if owner_node and owner_node.has_method("resolve_incoming_damage"):
+		owner_node.resolve_incoming_damage(final_damage)
+	elif health_component:
 		health_component.damage(final_damage)
 	hit.emit(final_damage)
 	_source_cooldowns[source_id] = hit_cooldown

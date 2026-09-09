@@ -12,7 +12,11 @@ func _ready():
 	restart_button.pressed.connect(_on_restart_pressed)
 
 func _on_game_over():
-	message_label.text = "GAME OVER"
+	var core := get_tree().get_first_node_in_group("LifeCore")
+	if core and core.has_method("is_destroyed") and core.is_destroyed():
+		message_label.text = "灵核破碎\nGAME OVER"
+	else:
+		message_label.text = "GAME OVER"
 	visible = true
 	get_tree().paused = true
 

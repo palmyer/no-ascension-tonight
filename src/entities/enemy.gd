@@ -1,7 +1,7 @@
 extends CharacterBody2D
 class_name Enemy
 
-enum EnemyType { MELEE, ARROW, MAGIC, HEAL }
+enum EnemyType { MELEE, ARROW, MAGIC, HEAL, HEAVY, ASSASSIN }
 @export var enemy_type: EnemyType = EnemyType.MELEE
 
 @onready var health_component: HealthComponent = $HealthComponent
@@ -22,10 +22,14 @@ var target: Node2D
 var shoot_timer: float = 0.0
 var heal_timer: float = 0.0
 var melee_attack_timer: float = 0.0
+var core_attack_timer: float = 0.0
 var health_label: Label
 var enemy_level: int = 1
 var wave_damage_multiplier: float = 1.0
 var attribute_component: AttributeStatusComponent
+var fracture_stacks: int = 0
+var fracture_time: float = 0.0
+var fracture_triggering: bool = false
 
 @export var orb_scene: PackedScene = preload("res://scenes/entities/pickups/spirit_orb.tscn")
 @onready var bullet_pkg: PackedScene = load(bullet_scene_path)
@@ -33,15 +37,21 @@ var attribute_component: AttributeStatusComponent
 var player: Node2D
 var core: Node2D
 
-const MELEE_TEXTURE = preload("res://assets/textures/enemies/enemy_melee_64.png")
-const ARROW_TEXTURE = preload("res://assets/textures/enemies/enemy_arrow_64.png")
-const MAGIC_TEXTURE = preload("res://assets/textures/enemies/enemy_magic_64.png")
-const HEAL_TEXTURE  = preload("res://assets/textures/enemies/enemy_heal_64.png")
+const MELEE_TEXTURE = preload("res://assets/textures/enemies/enemy_red_melee_full.png")
+const ARROW_TEXTURE = preload("res://assets/textures/enemies/enemy_yellow_arrow_full.png")
+const MAGIC_TEXTURE = preload("res://assets/textures/enemies/enemy_blue_magic_full.png")
+const HEAL_TEXTURE  = preload("res://assets/textures/enemies/enemy_green_heal_full.png")
+const HEAVY_TEXTURE = preload("res://assets/textures/enemies/enemy_heavy_full.png")
+const ASSASSIN_TEXTURE = preload("res://assets/textures/enemies/enemy_assassin_full.png")
 
 func _ready():
 	add_to_group("Enemy")
 	add_to_group("DamageableEnemy")
-	z_index = -2
+	z_index = 2
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	# Keep minions visibly smaller than the protagonist while preserving the
+	# full-body silhouette and faction-specific weapon read at gameplay scale.
+	sprite.scale = Vector2.ONE * 0.17
 
 	match enemy_type:
 		EnemyType.MELEE:
@@ -62,6 +72,17 @@ func _ready():
 			sprite.texture = HEAL_TEXTURE
 			speed = 85.0
 			aggro_range = 250.0
+		EnemyType.HEAVY:
+			sprite.texture = HEAVY_TEXTURE
+			sprite.scale = Vector2.ONE * 0.07
+			speed = 58.0
+			$HitboxComponent.damage = 32.0
+		EnemyType.ASSASSIN:
+			sprite.texture = ASSASSIN_TEXTURE
+			sprite.scale = Vector2.ONE * 0.07
+			speed = 155.0
+			aggro_range = 520.0
+			$HitboxComponent.damage = 18.0
 
 
 	var scaling := WaveManager.get_enemy_scaling(GameManager.current_state == GameManager.GameState.NIGHT)
@@ -76,6 +97,8 @@ func _ready():
 	match enemy_type:
 		EnemyType.MELEE: base_health = 15.0
 		EnemyType.HEAL:  base_health = 8.0
+		EnemyType.HEAVY: base_health = 42.0
+		EnemyType.ASSASSIN: base_health = 9.0
 
 	var scaled_health := base_health * float(scaling.get("health", 1.0))
 	health_component.max_health = scaled_health
@@ -107,6 +130,9 @@ func play_attack_anim():
 	st.tween_property(self, "scale", Vector2(1.0, 1.0), 0.15)
 
 func _physics_process(delta: float):
+	fracture_time = maxf(fracture_time - delta, 0.0)
+	if fracture_time <= 0.0:
+		fracture_stacks = 0
 	if health_label:
 		health_label.visible = GameManager.debug_mode
 		health_label.text = "L%d %d" % [enemy_level, int(health_component.current_health)]
@@ -126,9 +152,14 @@ func _physics_process(delta: float):
 	var current_aggro = aggro_range
 	var is_night = GameManager.current_state == GameManager.GameState.NIGHT
 	var status_speed_multiplier := attribute_component.get_speed_multiplier() if attribute_component else 1.0
+	if GameManager.has_upgrade("aura_slow") and core and is_instance_valid(core):
+		if global_position.distance_to(core.global_position) <= 190.0:
+			status_speed_multiplier *= maxf(0.25, 1.0 - GameManager.get_upgrade_modifier("core_aura_slow_pct"))
 
 	if is_night:
 		current_aggro = aggro_range * 2.0
+		if _process_core_attack(delta):
+			return
 
 	# HEAL enemy: periodically heal nearby allies
 	if enemy_type == EnemyType.HEAL:
@@ -163,13 +194,20 @@ func _physics_process(delta: float):
 					shoot_timer = shoot_interval
 
 			# MELEE: periodic attack animation when close to player
-			if enemy_type == EnemyType.MELEE:
-				var contact_range = 50.0
+			if enemy_type == EnemyType.MELEE or enemy_type == EnemyType.HEAVY or enemy_type == EnemyType.ASSASSIN:
+				var contact_range := 50.0
+				var contact_interval := 0.8
+				if enemy_type == EnemyType.HEAVY:
+					contact_range = 60.0
+					contact_interval = 1.1
+				elif enemy_type == EnemyType.ASSASSIN:
+					contact_range = 46.0
+					contact_interval = 0.55
 				if dist_to_player < contact_range:
 					melee_attack_timer -= delta
 					if melee_attack_timer <= 0:
 						play_attack_anim()
-						melee_attack_timer = 0.8
+						melee_attack_timer = contact_interval
 		elif is_night and core:
 			move_target = core.global_position
 			active_chase = true
@@ -185,6 +223,41 @@ func _physics_process(delta: float):
 		move_and_slide()
 	else:
 		velocity = Vector2.ZERO
+
+func _process_core_attack(delta: float) -> bool:
+	if not core or not is_instance_valid(core) or not core.has_method("receive_damage"):
+		return false
+	if core.has_method("is_destroyed") and core.is_destroyed():
+		return false
+	if global_position.distance_to(core.global_position) > 62.0:
+		return false
+
+	velocity = Vector2.ZERO
+	core_attack_timer -= delta
+	if core_attack_timer <= 0.0:
+		var damage_ratio := 0.45
+		var attack_interval := 1.1
+		match enemy_type:
+			EnemyType.ARROW:
+				damage_ratio = 0.30
+				attack_interval = 1.35
+			EnemyType.MAGIC:
+				damage_ratio = 0.40
+				attack_interval = 1.25
+			EnemyType.HEAL:
+				damage_ratio = 0.25
+				attack_interval = 1.5
+			EnemyType.HEAVY:
+				damage_ratio = 0.60
+				attack_interval = 1.0
+			EnemyType.ASSASSIN:
+				damage_ratio = 0.35
+				attack_interval = 0.75
+		var core_damage := maxf(float($HitboxComponent.damage) * damage_ratio, 2.0)
+		core.receive_damage(core_damage)
+		core_attack_timer = attack_interval
+		play_attack_anim()
+	return true
 
 func heal_nearby_enemies() -> bool:
 	var enemies = get_tree().get_nodes_in_group("Enemy")
@@ -251,14 +324,75 @@ func shoot_at_player():
 func take_damage(amount: float) -> void:
 	if health_component.current_health <= 0.0:
 		return
+	var health_before := health_component.current_health
 	health_component.damage(amount)
+	if health_component.current_health <= 0.0 and health_before > 0.0 and amount > health_before:
+		GameManager.spawn_overkill_chain(global_position, amount - health_before)
+
+func add_fracture(attack_damage: float, stacks_to_add: int = 1) -> void:
+	if not GameManager.has_upgrade("fracture_mark") or health_component.current_health <= 0.0:
+		return
+	fracture_time = GameManager.get_upgrade_modifier_or_default("fracture_duration", 2.2)
+	fracture_stacks += maxi(stacks_to_add, 1)
+	var threshold := maxi(int(GameManager.get_upgrade_modifier_or_default("fracture_threshold", 5.0)), 1)
+	if fracture_stacks < threshold or not GameManager.has_upgrade("fracture_harvest") or fracture_triggering:
+		return
+	fracture_triggering = true
+	var harvest_damage := attack_damage * GameManager.get_upgrade_modifier_or_default("fracture_damage_pct", 0.70)
+	fracture_stacks = 0
+	fracture_time = 0.0
+	take_damage(harvest_damage)
+	GameManager.spawn_burst_damage(
+		global_position,
+		GameManager.get_upgrade_modifier_or_default("fracture_radius", 90.0),
+		harvest_damage * 0.45,
+		{},
+		Color("c6a4ff")
+	)
+	var spread_count := maxi(int(GameManager.get_upgrade_modifier_or_default("fracture_spread", 1.0)), 0)
+	if spread_count > 0:
+		var spread_targets: Array = []
+		for candidate in get_tree().get_nodes_in_group("DamageableEnemy"):
+			if candidate == self or not is_instance_valid(candidate) or not candidate.has_method("add_fracture"):
+				continue
+			if candidate.global_position.distance_to(global_position) <= GameManager.get_upgrade_modifier_or_default("fracture_radius", 90.0):
+				spread_targets.append(candidate)
+		for index in range(mini(spread_count, spread_targets.size())):
+			var spread_target = spread_targets[index]
+			spread_target.add_fracture(harvest_damage * 0.35, 1)
+	fracture_triggering = false
 
 func _on_died():
+	var player_node := get_tree().get_first_node_in_group("Player")
+	if player_node and player_node.has_method("register_enemy_kill"):
+		player_node.register_enemy_kill(self)
 	spawn_orb()
+	if GameManager.has_upgrade("execution_burst"):
+		GameManager.spawn_burst_damage(
+			global_position,
+			GameManager.get_upgrade_modifier("execution_burst_radius", 85.0),
+			GameManager.get_upgrade_modifier("execution_burst_damage", 20.0),
+			{},
+			Color("d78b63")
+		)
+	if GameManager.has_upgrade("blade_poison_cloud"):
+		GameManager.spawn_damage_zone(
+			global_position,
+			GameManager.get_upgrade_modifier("blade_poison_cloud_radius", 90.0),
+			GameManager.get_upgrade_modifier("blade_poison_cloud_duration", 3.0),
+			GameManager.get_upgrade_modifier("blade_poison_cloud_damage", 4.0),
+			{"poison": 1},
+			Color("65c579")
+		)
 	queue_free()
 
 func spawn_orb():
 	if not orb_scene: return
+	_spawn_orb_once()
+	if GameManager.should_drop_bonus_orb():
+		_spawn_orb_once()
+
+func _spawn_orb_once() -> void:
 	var orb = orb_scene.instantiate()
 	orb.global_position = global_position
 	orb.type = GameManager.get_weighted_drop_type()

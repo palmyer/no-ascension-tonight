@@ -29,6 +29,19 @@ func _run_checks() -> void:
 		if expected_route_counts.has(wave) and int(data.get("directions", 0)) != expected_route_counts[wave]:
 			errors.append("wave %d route count mismatch" % wave)
 
+	for mix_id in wave_manager.ENEMY_MIXES:
+		var weights: Array = wave_manager.ENEMY_MIXES[mix_id]
+		if weights.size() != 6:
+			errors.append("enemy mix %s should expose six enemy types" % mix_id)
+		var weight_sum := 0.0
+		for weight in weights:
+			weight_sum += float(weight)
+		if not is_equal_approx(weight_sum, 1.0):
+			errors.append("enemy mix %s weights should sum to 1" % mix_id)
+	var late_weights: Array = wave_manager.ENEMY_MIXES["late_pressure"]
+	if float(late_weights[4]) <= 0.0 or float(late_weights[5]) <= 0.0:
+		errors.append("late pressure should include heavy and assassin enemies")
+
 	if errors.is_empty():
 		print("Wave plan validation passed: %d waves" % wave_manager.MAX_WAVES)
 		quit(0)

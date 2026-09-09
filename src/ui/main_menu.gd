@@ -8,6 +8,10 @@ var weapon_view: Control
 var resolution_option: OptionButton
 var mode_option: OptionButton
 var selected_weapon_label: Label
+var preview_title: Label
+var preview_subtitle: Label
+var preview_description: Label
+var preview_weapon_icon: Label
 var weapon_buttons: Dictionary = {}
 
 const COLOR_BACKGROUND := Color("07151d")
@@ -20,6 +24,8 @@ const COLOR_RED := Color("b84949")
 const COLOR_GREEN := Color("5ca875")
 const COLOR_BLUE := Color("5b91ca")
 const COLOR_YELLOW := Color("c7a553")
+const CHARACTER_PORTRAIT = preload("res://assets/textures/player/player_256.png")
+const WEAPON_MARKS := {"sword": "剑", "blade": "刃", "spear": "枪", "musket": "铳"}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -124,7 +130,43 @@ func _build_views() -> void:
 	weapon_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	weapon_hint.add_theme_color_override("font_color", COLOR_MUTED)
 	weapon_content.add_child(weapon_hint)
-	_add_spacer(weapon_content, 18)
+	_add_spacer(weapon_content, 12)
+
+	var preview_row := HBoxContainer.new()
+	preview_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	preview_row.add_theme_constant_override("separation", 18)
+	weapon_content.add_child(preview_row)
+	var portrait := TextureRect.new()
+	portrait.texture = CHARACTER_PORTRAIT
+	portrait.custom_minimum_size = Vector2(150, 150)
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	preview_row.add_child(portrait)
+	var preview_copy := VBoxContainer.new()
+	preview_copy.custom_minimum_size = Vector2(360, 150)
+	preview_copy.alignment = BoxContainer.ALIGNMENT_CENTER
+	preview_row.add_child(preview_copy)
+	preview_title = Label.new()
+	preview_title.add_theme_font_size_override("font_size", 26)
+	preview_title.add_theme_color_override("font_color", COLOR_TEXT)
+	preview_copy.add_child(preview_title)
+	preview_subtitle = Label.new()
+	preview_subtitle.add_theme_font_size_override("font_size", 15)
+	preview_subtitle.add_theme_color_override("font_color", COLOR_GOLD)
+	preview_copy.add_child(preview_subtitle)
+	preview_description = Label.new()
+	preview_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	preview_description.add_theme_font_size_override("font_size", 14)
+	preview_description.add_theme_color_override("font_color", COLOR_MUTED)
+	preview_copy.add_child(preview_description)
+	preview_weapon_icon = Label.new()
+	preview_weapon_icon.custom_minimum_size = Vector2(78, 78)
+	preview_weapon_icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	preview_weapon_icon.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	preview_weapon_icon.add_theme_font_size_override("font_size", 48)
+	preview_weapon_icon.add_theme_color_override("font_color", COLOR_GOLD)
+	preview_row.add_child(preview_weapon_icon)
+	_add_spacer(weapon_content, 10)
 
 	var weapon_grid := GridContainer.new()
 	weapon_grid.columns = 2
@@ -138,6 +180,10 @@ func _build_views() -> void:
 		button.toggle_mode = true
 		button.text = "%s\n%s\n%s" % [data.name, data.subtitle, data.description]
 		button.add_theme_font_size_override("font_size", 16)
+		button.add_theme_color_override("font_color", COLOR_TEXT)
+		button.add_theme_stylebox_override("normal", _make_panel_style(COLOR_PANEL_DARK, Color("41646a"), 1))
+		button.add_theme_stylebox_override("hover", _make_panel_style(Color("193844"), COLOR_GOLD, 2))
+		button.add_theme_stylebox_override("pressed", _make_panel_style(Color("254c50"), COLOR_GOLD, 2))
 		button.pressed.connect(_select_weapon.bind(weapon_id))
 		weapon_grid.add_child(button)
 		weapon_buttons[weapon_id] = button
@@ -266,6 +312,11 @@ func _select_weapon(weapon_id: String) -> void:
 		button.self_modulate = Color.WHITE if id == weapon_id else Color(0.72, 0.78, 0.75, 1.0)
 	var selected: Dictionary = GameManager.get_selected_weapon()
 	selected_weapon_label.text = "已选择：%s · %s" % [selected.name, selected.subtitle]
+	if preview_title:
+		preview_title.text = str(selected.get("name", "本命法宝"))
+		preview_subtitle.text = str(selected.get("subtitle", ""))
+		preview_description.text = str(selected.get("description", ""))
+		preview_weapon_icon.text = str(WEAPON_MARKS.get(weapon_id, "法"))
 
 func _start_game() -> void:
 	GameManager.start_new_run()

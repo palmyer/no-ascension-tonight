@@ -85,7 +85,7 @@ func pick_enemy_type() -> Enemy.EnemyType:
 	var weights: Array = WaveManager.get_enemy_type_weights()
 	var roll := randf()
 	var cumulative := 0.0
-	for index in range(min(weights.size(), 4)):
+	for index in range(min(weights.size(), 6)):
 		cumulative += float(weights[index])
 		if roll < cumulative:
 			return index

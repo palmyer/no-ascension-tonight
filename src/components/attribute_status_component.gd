@@ -31,6 +31,7 @@ func _apply_attribute(attribute_id: String, mastery_level: int, attack_damage: f
 		return
 	if not GameManager.ATTRIBUTE_DEFINITIONS.has(attribute_id):
 		return
+	var target := get_parent()
 
 	var existing_ids: Array = statuses.keys()
 	for existing_id in existing_ids:
@@ -43,10 +44,17 @@ func _apply_attribute(attribute_id: String, mastery_level: int, attack_damage: f
 	var definition: Dictionary = GameManager.ATTRIBUTE_DEFINITIONS[attribute_id]
 	var status: Dictionary = statuses.get(attribute_id, {"stacks": 0, "time": 0.0, "tick_time": 0.0, "mastery": 0})
 	var mastery_bonus := maxi(mastery_level - 1, 0)
-	status["stacks"] = mini(int(status.get("stacks", 0)) + 1, int(definition.get("max_stacks", 1)) + mastery_bonus)
+	var next_stacks := mini(int(status.get("stacks", 0)) + 1, int(definition.get("max_stacks", 1)) + mastery_bonus)
+	status["stacks"] = next_stacks
 	var duration_multiplier := 1.0 + mastery_bonus * 0.15
 	status["time"] = maxf(float(status.get("time", 0.0)), float(definition.get("duration", 2.0)) * duration_multiplier)
 	status["mastery"] = maxi(int(status.get("mastery", 0)), mastery_level)
+	var detonator_threshold := int(GameManager.get_upgrade_modifier("status_detonator_stacks"))
+	if detonator_threshold > 0 and next_stacks >= detonator_threshold and attack_damage > 0.0:
+		var detonation_damage := attack_damage * GameManager.get_upgrade_modifier("status_detonator_damage_pct", 0.32)
+		target.take_damage(detonation_damage)
+		GameManager.spawn_burst_damage(target.global_position, GameManager.get_upgrade_modifier("status_detonator_radius", 75.0), detonation_damage * 0.45, {}, Color("d78b63"))
+		status["stacks"] = 0
 	statuses[attribute_id] = status
 
 func _tick_statuses(delta: float) -> void:
@@ -82,11 +90,17 @@ func _trigger_reaction(reaction: Dictionary, first_attribute: String, second_att
 		return
 	var first_mastery := int(statuses.get(first_attribute, {}).get("mastery", 1))
 	var mastery_multiplier := 1.0 + float(first_mastery + mastery_level - 2) * 0.12
-	reaction_cooldowns[reaction_id] = REACTION_COOLDOWN / mastery_multiplier
+	var reaction_cooldown := GameManager.get_reaction_cooldown() if get_node_or_null("/root/GameManager") else REACTION_COOLDOWN
+	reaction_cooldowns[reaction_id] = reaction_cooldown / mastery_multiplier
 	var reaction_damage := maxf(1.0, attack_damage * float(reaction.get("damage_multiplier", 0.5)) * mastery_multiplier)
+	reaction_damage *= 1.0 + GameManager.get_upgrade_modifier("reaction_damage_pct")
+	GameManager.add_transmute_charge(reaction_damage)
 	target.take_damage(reaction_damage)
+	if get_node_or_null("/root/EventBus") and target is Node2D:
+		EventBus.attribute_reaction.emit(str(reaction.get("name", reaction_id)), target.global_position)
 
-	match str(reaction.get("effect", "")):
+	var effect := str(reaction.get("effect", ""))
+	match effect:
 		"burst":
 			_damage_nearby_targets(reaction_damage * 0.35)
 			_apply_knockback(origin, 28.0 + mastery_multiplier * 8.0)
@@ -102,6 +116,11 @@ func _trigger_reaction(reaction: Dictionary, first_attribute: String, second_att
 		"spread":
 			_spread_attribute(second_attribute, reaction_damage * 0.25)
 
+	var spread_chance := GameManager.get_upgrade_modifier("reaction_spread_chance") if get_node_or_null("/root/GameManager") else 0.0
+	if effect != "spread" and spread_chance > 0.0 and randf() < spread_chance:
+		var spread_count := maxi(int(GameManager.get_upgrade_modifier("reaction_spread_count", 1.0)), 1)
+		_spread_attribute(second_attribute, reaction_damage * 0.25, spread_count)
+
 func _damage_nearby_targets(damage: float) -> void:
 	var target := get_parent() as Node2D
 	if not target:
@@ -115,10 +134,11 @@ func _damage_nearby_targets(damage: float) -> void:
 		if target.global_position.distance_to(other.global_position) <= 120.0 and other.has_method("take_damage"):
 			other.take_damage(damage)
 
-func _spread_attribute(attribute_id: String, attack_damage: float) -> void:
+func _spread_attribute(attribute_id: String, attack_damage: float, max_targets: int = -1) -> void:
 	var target := get_parent() as Node2D
 	if not target:
 		return
+	var spread_targets := 0
 	for other in get_tree().get_nodes_in_group("DamageableEnemy"):
 		if other == target or not is_instance_valid(other) or not (other is Node2D):
 			continue
@@ -126,6 +146,9 @@ func _spread_attribute(attribute_id: String, attack_damage: float) -> void:
 			continue
 		if other.has_method("apply_attribute_payload"):
 			other.apply_attribute_payload({attribute_id: 1}, attack_damage)
+			spread_targets += 1
+			if max_targets > 0 and spread_targets >= max_targets:
+				break
 
 func _chain_damage(damage: float, jump_count: int) -> void:
 	var target := get_parent() as Node2D

@@ -1,5 +1,8 @@
 extends Node
 
+const DAMAGE_ZONE_SCRIPT = preload("res://src/effects/damage_zone.gd")
+const SKILL_BURST_VISUAL = preload("res://src/effects/skill_burst_visual.gd")
+
 enum GameState { DAY, SHOP, NIGHT }
 var current_state: GameState = GameState.DAY
 var current_wave: int = 1
@@ -77,7 +80,7 @@ const WEAPON_ATTRIBUTES = {
 }
 
 # Debug 开关
-var debug_mode: bool = true
+var debug_mode: bool = false
 
 # 掉落计数
 var orb_counts = {
@@ -120,6 +123,20 @@ var attribute_mastery: Dictionary = {}
 # 光环状态
 var player_in_aura: bool = false
 
+# 波间事件效果。效果只影响下一波，避免把一次选择永久滚雪球。
+var next_day_orb_bonus: float = 0.0
+var next_night_core_ward: float = 0.0
+var active_core_ward_time: float = 0.0
+var last_intermission_event_id: String = ""
+var core_revenge_ready: bool = false
+var special_core_repair_timer: float = 0.0
+var attribute_shift_timer: float = 0.0
+var attribute_shift_index: int = 0
+var attribute_shift_initialized: bool = false
+var attribute_overload_stacks: int = 0
+var overkill_chain_depth: int = 0
+var transmute_charge: float = 0.0
+
 # Boss 状态跟踪
 var boss_states = {
 	"RedCrack": false,
@@ -134,14 +151,28 @@ func _ready():
 	EventBus.boss_defeated.connect(_on_boss_defeated)
 	update_current_stats()
 
+func _process(delta: float) -> void:
+	active_core_ward_time = maxf(active_core_ward_time - delta, 0.0)
+	special_core_repair_timer = maxf(special_core_repair_timer - delta, 0.0)
+	_process_attribute_shift(delta)
+
 func _on_boss_defeated(boss_id: String):
 	if boss_states.has(boss_id):
 		boss_states[boss_id] = true
-		print("[DEBUG] GameManager: Boss %s defeated!" % boss_id)
+		if debug_mode:
+			print("[DEBUG] GameManager: Boss %s defeated!" % boss_id)
 
 func _on_orb_collected(type: int):
 	orb_counts[type] += 1
 	total_orbs += 1
+	if has_upgrade("orb_alchemy"):
+		var player := get_tree().get_first_node_in_group("Player")
+		var health := player.get_node_or_null("HealthComponent") if player else null
+		if health:
+			health.heal(get_upgrade_modifier("orb_alchemy_heal", 0.0))
+	var shield_player := get_tree().get_first_node_in_group("Player")
+	if shield_player and shield_player.has_method("add_temporary_shield") and has_upgrade("aegis_resonance"):
+		shield_player.add_temporary_shield(get_upgrade_modifier_or_default("shield_on_orb", 0.0))
 	update_current_stats() # 灵性球改变即更新属性
 	
 	if total_orbs >= xp_required:
@@ -165,8 +196,15 @@ func update_current_stats():
 		current_stats["attack_speed"] += 20
 		current_stats["move_speed"] += 15
 		current_stats["hp_regen_5s"] += 5.0 # 光环内5秒回5点
+		current_stats["armor"] += get_upgrade_modifier("aura_armor")
+		current_stats["damage_pct"] += get_upgrade_modifier("aura_damage_pct")
+
+	var rainbow_threshold := maxi(int(get_upgrade_modifier("rainbow_threshold", 0.0)), 0)
+	if rainbow_threshold > 0 and _has_all_four_colors(rainbow_threshold):
+		current_stats["damage_pct"] += get_upgrade_modifier("rainbow_damage_pct")
 
 	_apply_attribute_stats()
+	current_stats["outside_aura_damage_pct"] += get_upgrade_modifier("outside_aura_damage_pct")
 
 	var player := get_tree().get_first_node_in_group("Player")
 	if player and player.has_method("apply_runtime_stats"):
@@ -194,6 +232,49 @@ func apply_attribute_upgrade(attribute_id: String, points: int = 3) -> void:
 	attribute_mastery[attribute_id] = int(attribute_mastery.get(attribute_id, 0)) + maxi(points, 1)
 	update_current_stats()
 
+func has_upgrade(card_id: String) -> bool:
+	var upgrade_manager := get_node_or_null("/root/UpgradeManager")
+	return upgrade_manager != null and upgrade_manager.has_card(card_id)
+
+func get_upgrade_modifier(modifier_id: String, default_value: float = 0.0) -> float:
+	var upgrade_manager := get_node_or_null("/root/UpgradeManager")
+	if not upgrade_manager:
+		return default_value
+	return float(upgrade_manager.get_modifier(modifier_id, default_value))
+
+func get_upgrade_modifier_or_default(modifier_id: String, fallback: float) -> float:
+	var value := get_upgrade_modifier(modifier_id)
+	return fallback if is_zero_approx(value) else value
+
+func get_reaction_cooldown() -> float:
+	return maxf(0.12, 0.35 * (1.0 - get_upgrade_modifier("reaction_cooldown_reduction")))
+
+func arm_core_revenge() -> void:
+	if has_upgrade("core_revenge"):
+		core_revenge_ready = true
+
+func consume_core_revenge_bonus() -> float:
+	if not core_revenge_ready:
+		return 0.0
+	core_revenge_ready = false
+	return get_upgrade_modifier("core_revenge_damage_pct")
+
+func try_special_core_repair() -> float:
+	var amount := get_upgrade_modifier("special_core_repair_amount")
+	if amount <= 0.0 or special_core_repair_timer > 0.0:
+		return 0.0
+	special_core_repair_timer = get_upgrade_modifier("special_core_repair_interval", 12.0)
+	return amount
+
+func spawn_damage_zone(position: Vector2, radius: float, duration: float, damage: float, payload: Dictionary, color: Color) -> void:
+	var zone := DAMAGE_ZONE_SCRIPT.new()
+	zone.global_position = position
+	zone.configure(radius, duration, damage, payload, color)
+	var host := get_tree().current_scene
+	if not host:
+		host = get_tree().root
+	host.add_child(zone)
+
 func get_attribute_mastery_level(attribute_id: String) -> int:
 	var points := int(attribute_mastery.get(attribute_id, 0))
 	if points >= 10:
@@ -213,9 +294,180 @@ func get_active_attribute_ids() -> Array:
 
 func get_attack_attribute_payload() -> Dictionary:
 	var payload: Dictionary = {}
-	for attribute_id in get_active_attribute_ids():
+	var active := get_active_attribute_ids()
+	if has_upgrade("attribute_shift") and active.size() >= 2:
+		var current_index := posmod(attribute_shift_index, active.size())
+		var current_attribute := str(active[current_index])
+		payload[current_attribute] = get_attribute_mastery_level(current_attribute)
+		if has_upgrade("attribute_prism"):
+			var echo_attribute := str(active[(current_index + 1) % active.size()])
+			payload[echo_attribute] = maxi(get_attribute_mastery_level(echo_attribute) - 1, 1)
+		return payload
+	for attribute_id in active:
 		payload[attribute_id] = get_attribute_mastery_level(attribute_id)
 	return payload
+
+func get_current_shift_attribute() -> String:
+	var active := get_active_attribute_ids()
+	if active.is_empty():
+		return ""
+	return str(active[posmod(attribute_shift_index, active.size())])
+
+func spawn_burst_damage(position: Vector2, radius: float, damage: float, payload: Dictionary = {}, color: Color = Color("f6c857")) -> int:
+	if radius <= 0.0 or damage <= 0.0:
+		return 0
+	var defeated_count := 0
+	for enemy in get_tree().get_nodes_in_group("DamageableEnemy"):
+		if not is_instance_valid(enemy) or not (enemy is Node2D):
+			continue
+		if position.distance_to(enemy.global_position) > radius:
+			continue
+		var was_alive := true
+		var enemy_health := enemy.get_node_or_null("HealthComponent")
+		if enemy_health:
+			was_alive = enemy_health.current_health > 0.0
+		if enemy.has_method("take_damage"):
+			enemy.take_damage(damage)
+		if was_alive and enemy_health and enemy_health.current_health <= 0.0:
+			defeated_count += 1
+		if not payload.is_empty() and enemy.has_method("apply_attribute_payload"):
+			enemy.apply_attribute_payload(payload, damage, position)
+	var visual := SKILL_BURST_VISUAL.new()
+	visual.global_position = position
+	visual.configure(radius, color)
+	var host := get_tree().current_scene if get_tree().current_scene else get_tree().root
+	host.add_child(visual)
+	return defeated_count
+
+func spawn_overkill_chain(position: Vector2, overkill_damage: float) -> void:
+	if not has_upgrade("overkill_conversion") or overkill_damage <= 0.0:
+		return
+	var max_depth := maxi(int(get_upgrade_modifier_or_default("overkill_chain_depth", 2.0)), 1)
+	if overkill_chain_depth >= max_depth:
+		return
+	var radius := get_upgrade_modifier_or_default("overkill_radius", 185.0)
+	var target_count := maxi(int(get_upgrade_modifier_or_default("overkill_chain_count", 1.0)), 1)
+	var candidates: Array = []
+	for enemy in get_tree().get_nodes_in_group("DamageableEnemy"):
+		if not is_instance_valid(enemy) or not (enemy is Node2D):
+			continue
+		var enemy_health := enemy.get_node_or_null("HealthComponent")
+		if enemy_health and enemy_health.current_health <= 0.0:
+			continue
+		if position.distance_to(enemy.global_position) <= radius:
+			candidates.append(enemy)
+	overkill_chain_depth += 1
+	for index in range(mini(target_count, candidates.size())):
+		var nearest: Node2D = null
+		var nearest_distance := INF
+		for candidate in candidates:
+			if not is_instance_valid(candidate) or not (candidate is Node2D):
+				continue
+			var distance := position.distance_to(candidate.global_position)
+			if distance < nearest_distance:
+				nearest_distance = distance
+				nearest = candidate
+		if not nearest:
+			break
+		var damage_ratio := get_upgrade_modifier_or_default("overkill_damage_pct", 0.65)
+		if index > 0:
+			damage_ratio = get_upgrade_modifier_or_default("overkill_split_damage_pct", damage_ratio)
+		nearest.take_damage(overkill_damage * damage_ratio)
+		candidates.erase(nearest)
+	overkill_chain_depth -= 1
+	var visual := SKILL_BURST_VISUAL.new()
+	visual.global_position = position
+	visual.configure(radius, Color("f6c857"))
+	var host := get_tree().current_scene if get_tree().current_scene else get_tree().root
+	host.add_child(visual)
+
+func register_attribute_overload(payload: Dictionary, position: Vector2, attack_damage: float) -> bool:
+	if not has_upgrade("attribute_overload"):
+		return false
+	if get_active_attribute_ids().size() != 1 or payload.size() != 1:
+		attribute_overload_stacks = 0
+		return false
+	attribute_overload_stacks += 1
+	var threshold := maxi(int(get_upgrade_modifier_or_default("attribute_overload_threshold", 6.0)), 1)
+	if attribute_overload_stacks < threshold:
+		return false
+	attribute_overload_stacks = 0
+	var burst_damage := attack_damage * get_upgrade_modifier_or_default("attribute_overload_damage_pct", 1.2)
+	var radius := get_upgrade_modifier_or_default("attribute_overload_radius", 90.0)
+	spawn_burst_damage(position, radius, burst_damage, payload, Color("e67e52"))
+	return true
+
+func add_transmute_charge(reaction_damage: float) -> void:
+	if not has_upgrade("damage_alchemy") or reaction_damage <= 0.0:
+		return
+	var charge_pct := get_upgrade_modifier_or_default("transmute_charge_pct", 0.20)
+	var max_charge := get_upgrade_modifier_or_default("transmute_max_charge", 90.0)
+	transmute_charge = minf(transmute_charge + reaction_damage * charge_pct, max_charge)
+
+func consume_transmute_charge(position: Vector2) -> float:
+	if transmute_charge <= 0.0:
+		return 0.0
+	var charge := transmute_charge
+	transmute_charge = 0.0
+	if has_upgrade("damage_transmute"):
+		spawn_burst_damage(
+			position,
+			get_upgrade_modifier_or_default("transmute_radius", 82.0),
+			charge * get_upgrade_modifier_or_default("transmute_burst_pct", 0.75),
+			{},
+			Color("d9a5ff")
+		)
+	return charge
+
+func spawn_afterimage_attack(position: Vector2, attack_damage: float, payload: Dictionary, color: Color) -> int:
+	if not has_upgrade("afterimage") or attack_damage <= 0.0:
+		return 0
+	var echo_damage := attack_damage * get_upgrade_modifier_or_default("afterimage_damage_pct", 0.25)
+	var defeated_count := spawn_burst_damage(
+		position,
+		get_upgrade_modifier_or_default("afterimage_radius", 72.0),
+		echo_damage,
+		payload,
+		color
+	)
+	if has_upgrade("afterimage_return"):
+		var player := get_tree().get_first_node_in_group("Player")
+		if player and player.has_method("refund_special_cooldown"):
+			player.refund_special_cooldown(get_upgrade_modifier_or_default("afterimage_cooldown_refund", 0.45))
+	return defeated_count
+
+func resolve_player_attack_damage(base_damage: float, position: Vector2, color: Color = Color("f6c857")) -> Dictionary:
+	var critical_chance := clampf(get_upgrade_modifier("critical_chance"), 0.0, 1.0)
+	if critical_chance <= 0.0 or randf() >= critical_chance:
+		return {"damage": base_damage, "critical": false}
+	var critical_damage := base_damage * get_upgrade_modifier("critical_multiplier", 1.5)
+	var explosion_radius := get_upgrade_modifier("critical_explosion_radius")
+	if explosion_radius > 0.0:
+		spawn_burst_damage(position, explosion_radius, critical_damage * get_upgrade_modifier("critical_explosion_damage_pct"), {}, color)
+	return {"damage": critical_damage, "critical": true}
+
+func _process_attribute_shift(delta: float) -> void:
+	if not has_upgrade("attribute_shift"):
+		return
+	var active := get_active_attribute_ids()
+	if active.size() < 2:
+		attribute_shift_index = 0
+		attribute_shift_initialized = false
+		return
+	if not attribute_shift_initialized:
+		attribute_shift_timer = get_upgrade_modifier("attribute_shift_interval", 4.5)
+		attribute_shift_initialized = true
+		return
+	attribute_shift_timer -= delta
+	if attribute_shift_timer <= 0.0:
+		attribute_shift_index = (attribute_shift_index + 1) % active.size()
+		attribute_shift_timer = get_upgrade_modifier("attribute_shift_interval", 4.5)
+
+func _has_all_four_colors(threshold: int) -> bool:
+	for color_index in range(4):
+		if int(orb_counts.get(color_index, 0)) < threshold:
+			return false
+	return true
 
 func get_attribute_summary() -> String:
 	var parts: Array[String] = []
@@ -288,7 +540,46 @@ func get_weighted_drop_type() -> int:
 func set_attunement(type: int):
 	attuned_type = type
 	update_current_stats()
-	print("[DEBUG] Attunement changed to: ", type)
+	if debug_mode:
+		print("[DEBUG] Attunement changed to: ", type)
+
+func apply_intermission_event(event_id: String) -> void:
+	last_intermission_event_id = event_id
+	match event_id:
+		"repair":
+			var core := get_tree().get_first_node_in_group("LifeCore")
+			if core and core.has_method("repair"):
+				core.repair(30.0)
+			var player := get_tree().get_first_node_in_group("Player")
+			var health := player.get_node_or_null("HealthComponent") if player else null
+			if health:
+				health.heal(20.0)
+		"harvest":
+			next_day_orb_bonus = 0.35
+		"ward":
+			next_night_core_ward = 18.0
+		_:
+			return
+	EventBus.intermission_event_chosen.emit(event_id)
+
+func activate_night_ward() -> void:
+	active_core_ward_time = next_night_core_ward
+	next_night_core_ward = 0.0
+
+func is_core_warded() -> bool:
+	return active_core_ward_time > 0.0
+
+func get_core_ward_time_left() -> float:
+	return active_core_ward_time
+
+func should_drop_bonus_orb() -> bool:
+	var total_bonus := next_day_orb_bonus + get_upgrade_modifier("day_bonus_orb_chance")
+	if current_state != GameState.DAY or total_bonus <= 0.0:
+		return false
+	return randf() < total_bonus
+
+func clear_day_event_bonus() -> void:
+	next_day_orb_bonus = 0.0
 
 func select_starting_weapon(weapon_id: String) -> void:
 	if STARTING_WEAPONS.has(weapon_id):
@@ -321,6 +612,18 @@ func reset_game():
 	xp_required = get_xp_required_for_level(player_level)
 	player_in_aura = false
 	attuned_type = -1
+	next_day_orb_bonus = 0.0
+	next_night_core_ward = 0.0
+	active_core_ward_time = 0.0
+	last_intermission_event_id = ""
+	core_revenge_ready = false
+	special_core_repair_timer = 0.0
+	attribute_shift_timer = 0.0
+	attribute_shift_index = 0
+	attribute_shift_initialized = false
+	attribute_overload_stacks = 0
+	overkill_chain_depth = 0
+	transmute_charge = 0.0
 	
 	for key in boss_states:
 		boss_states[key] = false
@@ -334,6 +637,10 @@ func reset_game():
 	var starting_attributes: Array = WEAPON_ATTRIBUTES.get(selected_weapon_id, ["fire"])
 	for attribute_id in starting_attributes:
 		attribute_mastery[attribute_id] = 3
+	var upgrade_manager := get_node_or_null("/root/UpgradeManager")
+	if upgrade_manager:
+		upgrade_manager.reset_run()
 	
 	update_current_stats()
-	print("[DEBUG] Game State Reset")
+	if debug_mode:
+		print("[DEBUG] Game State Reset")

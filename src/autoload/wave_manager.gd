@@ -11,15 +11,15 @@ const DEFAULT_BOSS_SCENE: PackedScene = preload("res://scenes/entities/bosses/bo
 const SPAWN_DIRECTION_ORDER = [0, 1, 2, 3]
 const STANDARD_BOSS_IDS = ["RedCrack", "GreenPlague", "BlueArc", "YellowSand"]
 
-# Enemy mix indexes: MELEE, ARROW, MAGIC, HEAL.
+# Enemy mix indexes: MELEE, ARROW, MAGIC, HEAL, HEAVY, ASSASSIN.
 const ENEMY_MIXES: Dictionary = {
-	"tutorial_melee": [1.0, 0.0, 0.0, 0.0],
-	"tutorial_arrow": [0.85, 0.15, 0.0, 0.0],
-	"mixed_light": [0.65, 0.25, 0.10, 0.0],
-	"mixed": [0.55, 0.25, 0.12, 0.08],
-	"pressure": [0.40, 0.25, 0.18, 0.17],
-	"late_pressure": [0.32, 0.25, 0.23, 0.20],
-	"final": [0.30, 0.25, 0.25, 0.20]
+	"tutorial_melee": [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+	"tutorial_arrow": [0.80, 0.15, 0.0, 0.0, 0.05, 0.0],
+	"mixed_light": [0.58, 0.24, 0.10, 0.0, 0.04, 0.04],
+	"mixed": [0.48, 0.23, 0.12, 0.07, 0.06, 0.04],
+	"pressure": [0.34, 0.22, 0.16, 0.15, 0.08, 0.05],
+	"late_pressure": [0.28, 0.21, 0.22, 0.16, 0.08, 0.05],
+	"final": [0.26, 0.22, 0.23, 0.15, 0.09, 0.05]
 }
 
 # Explicit wave data keeps balance values inspectable and testable.
@@ -48,11 +48,11 @@ const WAVE_PLAN: Array[Dictionary] = [
 ]
 
 const BOSS_SCHEDULE: Dictionary = {
-	"RedCrack": {"wave": 7, "unlock_wave": 5, "display_name": "赤裂大妖", "health": 700.0, "speed": 68.0, "contact_damage": 14.0, "dash_damage": 28.0, "charge_cooldown": 4.6, "charge_aim_time": 1.8},
-	"GreenPlague": {"wave": 10, "unlock_wave": 8, "display_name": "翠疫大妖", "health": 900.0, "speed": 58.0, "contact_damage": 16.0, "dash_damage": 32.0, "charge_cooldown": 4.4, "charge_aim_time": 1.9},
-	"BlueArc": {"wave": 13, "unlock_wave": 11, "display_name": "蓝弧大妖", "health": 1150.0, "speed": 74.0, "contact_damage": 15.0, "dash_damage": 30.0, "charge_cooldown": 4.0, "charge_aim_time": 1.7},
-	"YellowSand": {"wave": 16, "unlock_wave": 14, "display_name": "黄砂大妖", "health": 1450.0, "speed": 92.0, "contact_damage": 17.0, "dash_damage": 34.0, "charge_cooldown": 3.6, "charge_aim_time": 1.6},
-	"AscensionKing": {"wave": 20, "unlock_wave": 20, "display_name": "飞升妖王", "health": 2400.0, "speed": 105.0, "contact_damage": 24.0, "dash_damage": 48.0, "charge_cooldown": 3.0, "charge_aim_time": 1.5}
+	"RedCrack": {"wave": 7, "unlock_wave": 5, "display_name": "赤裂大妖", "health": 700.0, "speed": 68.0, "contact_damage": 14.0, "dash_damage": 28.0, "charge_cooldown": 4.6, "charge_aim_time": 1.8, "ability_cooldown": 7.0},
+	"GreenPlague": {"wave": 10, "unlock_wave": 8, "display_name": "翠疫大妖", "health": 900.0, "speed": 58.0, "contact_damage": 16.0, "dash_damage": 32.0, "charge_cooldown": 4.4, "charge_aim_time": 1.9, "ability_cooldown": 6.0},
+	"BlueArc": {"wave": 13, "unlock_wave": 11, "display_name": "蓝弧大妖", "health": 1150.0, "speed": 74.0, "contact_damage": 15.0, "dash_damage": 30.0, "charge_cooldown": 4.0, "charge_aim_time": 1.7, "ability_cooldown": 5.2},
+	"YellowSand": {"wave": 16, "unlock_wave": 14, "display_name": "黄砂大妖", "health": 1450.0, "speed": 92.0, "contact_damage": 17.0, "dash_damage": 34.0, "charge_cooldown": 3.6, "charge_aim_time": 1.6, "ability_cooldown": 5.0},
+	"AscensionKing": {"wave": 20, "unlock_wave": 20, "display_name": "飞升妖王", "health": 2400.0, "speed": 105.0, "contact_damage": 24.0, "dash_damage": 48.0, "charge_cooldown": 3.0, "charge_aim_time": 1.5, "ability_cooldown": 4.5}
 }
 
 @export var day_duration: float = 60.0
@@ -98,22 +98,27 @@ func start_day():
 	time_left = float(get_wave_data().get("day_duration", day_duration))
 	GameManager.update_current_stats()
 	state_changed.emit(GameManager.current_state)
-	print("[WAVE %d] Day Started | level %d" % [GameManager.current_wave, get_wave_level()])
+	if GameManager.debug_mode:
+		print("[WAVE %d] Day Started | level %d" % [GameManager.current_wave, get_wave_level()])
 
 func start_night():
 	if run_completed_flag:
 		return
 	GameManager.current_state = GameManager.GameState.NIGHT
 	time_left = float(get_wave_data().get("night_duration", night_duration))
+	GameManager.activate_night_ward()
+	GameManager.clear_day_event_bonus()
 	GameManager.update_current_stats()
 	state_changed.emit(GameManager.current_state)
 	_spawn_scheduled_boss()
-	print("[WAVE %d] Night Started | enemies %d | resonance %d" % [GameManager.current_wave, get_spawn_budget(true), get_resonance_layers()])
+	if GameManager.debug_mode:
+		print("[WAVE %d] Night Started | enemies %d | resonance %d" % [GameManager.current_wave, get_spawn_budget(true), get_resonance_layers()])
 
 func show_attunement_selection():
 	get_tree().paused = true
 	EventBus.emit_signal("show_attunement_wheel")
-	print("[WAVE %d] Night ended, showing Attunement Wheel" % GameManager.current_wave)
+	if GameManager.debug_mode:
+		print("[WAVE %d] Night ended, showing Attunement Wheel" % GameManager.current_wave)
 
 func start_next_wave():
 	if run_completed_flag:
@@ -127,7 +132,8 @@ func reset_manager():
 	time_left = 0.0
 	boss_spawned_ids.clear()
 	run_completed_flag = false
-	print("[DEBUG] Wave Manager Reset | %d waves" % MAX_WAVES)
+	if GameManager.debug_mode:
+		print("[DEBUG] Wave Manager Reset | %d waves" % MAX_WAVES)
 
 func get_wave_data(wave_num: int = -1) -> Dictionary:
 	var requested_wave := GameManager.current_wave if wave_num < 1 else wave_num
@@ -260,7 +266,8 @@ func _spawn_boss(boss_id: String, boss_scene: PackedScene, spawn_position: Vecto
 	boss.global_position = spawn_position
 	boss_spawned_ids[boss_id] = true
 	boss_spawned.emit(boss_id, GameManager.current_wave)
-	print("[BOSS] %s spawned at wave %d | HP %.0f" % [stats.get("display_name", boss_id), GameManager.current_wave, stats.get("health", 0.0)])
+	if GameManager.debug_mode:
+		print("[BOSS] %s spawned at wave %d | HP %.0f" % [stats.get("display_name", boss_id), GameManager.current_wave, stats.get("health", 0.0)])
 	return true
 
 func get_boss_spawn_position(boss_id: String) -> Vector2:
@@ -287,7 +294,8 @@ func complete_run():
 	get_tree().paused = false
 	EventBus.run_completed.emit(GameManager.current_wave)
 	run_completed.emit(GameManager.current_wave)
-	print("[RUN] Ascension complete at wave %d" % GameManager.current_wave)
+	if GameManager.debug_mode:
+		print("[RUN] Ascension complete at wave %d" % GameManager.current_wave)
 
 func validate_wave_plan() -> Array[String]:
 	var errors: Array[String] = []

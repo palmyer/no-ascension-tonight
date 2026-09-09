@@ -1,0 +1,65 @@
+{
+  "data": [
+    {
+      "id": "image-001",
+      "title": "主角全身立绘",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1725868420000,
+      "canvasData": {
+        "x": 0,
+        "y": 0
+      },
+      "devMetadata": {
+        "imageSrc": "assets/player-protagonist-full.jpg"
+      }
+    },
+    {
+      "id": "image-002",
+      "title": "主角简约版",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1725868500000,
+      "canvasData": {
+        "x": 480,
+        "y": 0
+      },
+      "devMetadata": {
+        "imageSrc": "assets/player-protagonist-minimal.jpg"
+      }
+    },
+    {
+      "id": "image-003",
+      "title": "女主角简约版",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1725868580000,
+      "canvasData": {
+        "x": 960,
+        "y": 0
+      },
+      "devMetadata": {
+        "imageSrc": "assets/player-heroine-minimal.jpg"
+      }
+    },
+    {
+      "id": "image-004",
+      "title": "女主角仙气版",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1725868660000,
+      "canvasData": {
+        "x": 1440,
+        "y": 0
+      },
+      "devMetadata": {
+        "imageSrc": "assets/player-heroine-fairy.jpg"
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": true,
+    "deviceType": "freeSize",
+    "projectName": "主角贴图设计"
+  }
+}

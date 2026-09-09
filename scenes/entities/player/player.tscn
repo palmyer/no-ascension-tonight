@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://d253kgtas5l34"]
 
 [ext_resource type="Script" uid="uid://cng3f34m768wt" path="res://src/entities/player.gd" id="1_cwyoj"]
-[ext_resource type="Texture2D" uid="uid://csy1x6b1yn24l" path="res://assets/textures/player/player.png" id="2_3lict"]
+[ext_resource type="Texture2D" path="res://assets/textures/player/player_256.png" id="2_3lict"]
 [ext_resource type="Texture2D" uid="uid://bk1ky8vifn6gn" path="res://assets/textures/weapons/sword_48.png" id="3_thl1o"]
 
 [sub_resource type="Animation" id="Animation_368l0"]
@@ -106,8 +106,10 @@ script = ExtResource("1_cwyoj")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=2004590640]
 texture = ExtResource("2_3lict")
+scale = Vector2(0.25, 0.25)
 
 [node name="SwordPivot" type="Node2D" parent="Sprite2D" unique_id=1307781002]
+scale = Vector2(4, 4)
 
 [node name="sword" type="Sprite2D" parent="Sprite2D/SwordPivot" unique_id=1568672410]
 texture = ExtResource("3_thl1o")

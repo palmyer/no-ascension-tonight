@@ -10,15 +10,64 @@ class_name LifeCore
 
 var base_aura_radius: float = 150.0
 var radius_growth_per_orb: float = 5.0 # 每颗球增加的半径
+@export var max_integrity: float = 100.0
+var integrity: float = 100.0
+var hit_flash_time: float = 0.0
+var destroyed: bool = false
 
 func _ready():
 	add_to_group("LifeCore")
+	integrity = max_integrity
 	# 初始更新一次
 	update_aura_shape()
+	queue_redraw()
 
-func _process(_delta: float):
+func _process(delta: float):
 	# 实时更新形状以响应拾取
 	update_aura_shape()
+	hit_flash_time = maxf(hit_flash_time - delta, 0.0)
+	var integrity_ratio := get_integrity_ratio()
+	$CoreVisual.color = Color("d34c4c").lerp(Color("46c982"), integrity_ratio)
+	$CoreVisual.modulate = Color(1.0, 1.0, 1.0, 1.0) if hit_flash_time <= 0.0 else Color(1.8, 0.65, 0.65, 1.0)
+	queue_redraw()
+
+func receive_damage(amount: float) -> void:
+	if destroyed or not GameManager.game_started or GameManager.is_core_warded():
+		return
+	var final_damage := maxf(amount, 0.0)
+	var damage_reduction := clampf(GameManager.get_upgrade_modifier("core_damage_reduction_pct"), 0.0, 0.75)
+	var damage_taken_bonus := GameManager.get_upgrade_modifier("core_damage_taken_pct")
+	final_damage *= maxf(1.0 - damage_reduction + damage_taken_bonus, 0.1)
+	if final_damage <= 0.0:
+		return
+	integrity = clampf(integrity - final_damage, 0.0, max_integrity)
+	hit_flash_time = 0.18
+	EventBus.core_damaged.emit(final_damage, integrity, max_integrity)
+	if GameManager.has_upgrade("core_revenge"):
+		GameManager.arm_core_revenge()
+	if integrity <= 0.0:
+		destroyed = true
+		EventBus.core_destroyed.emit()
+		GameManager.game_started = false
+		EventBus.game_over.emit()
+
+func repair(amount: float) -> void:
+	if destroyed:
+		return
+	var final_amount := maxf(amount, 0.0)
+	if final_amount <= 0.0:
+		return
+	var old_integrity := integrity
+	integrity = minf(integrity + final_amount, max_integrity)
+	var repaired_amount := integrity - old_integrity
+	if repaired_amount > 0.0:
+		EventBus.core_repaired.emit(repaired_amount, integrity, max_integrity)
+
+func get_integrity_ratio() -> float:
+	return clampf(integrity / maxf(max_integrity, 1.0), 0.0, 1.0)
+
+func is_destroyed() -> bool:
+	return destroyed
 
 func update_aura_shape():
 	var points = PackedVector2Array()
@@ -99,15 +148,22 @@ func _draw():
 	draw_polygon(points, [Color(0.08, 0.16, 0.2, 0.18)])
 	# 绘制边缘线
 	draw_polyline(points + PackedVector2Array([points[0]]), Color(0.65, 0.86, 0.78, 0.5), 2.0)
+	draw_arc(Vector2.ZERO, 52.0, -PI / 2.0, TAU * get_integrity_ratio() - PI / 2.0, 40, Color("e8c36a"), 5.0)
+	if GameManager.is_core_warded():
+		draw_arc(Vector2.ZERO, 62.0, 0.0, TAU, 48, Color(0.38, 0.78, 1.0, 0.85), 3.0)
+	if GameManager.core_revenge_ready:
+		draw_arc(Vector2.ZERO, 70.0, -PI / 2.0, TAU * 0.8 - PI / 2.0, 48, Color("f0b95f"), 4.0)
 
 func _on_aura_area_body_entered(body: Node2D):
 	if body.is_in_group("Player"):
 		GameManager.player_in_aura = true
 		GameManager.update_current_stats()
-		print("[DEBUG] Player entered Aura - Buff Applied")
+		if GameManager.debug_mode:
+			print("[DEBUG] Player entered Aura - Buff Applied")
 
 func _on_aura_area_body_exited(body: Node2D):
 	if body.is_in_group("Player"):
 		GameManager.player_in_aura = false
 		GameManager.update_current_stats()
-		print("[DEBUG] Player left Aura - Buff Removed")
+		if GameManager.debug_mode:
+			print("[DEBUG] Player left Aura - Buff Removed")

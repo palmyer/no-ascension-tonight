@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3 uid="uid://boss_redcrack_scene"]
+[gd_scene load_steps=7 format=3 uid="uid://boss_redcrack_scene"]
 
 [ext_resource type="Script" path="res://src/entities/boss_red_crack.gd" id="1_boss"]
 [ext_resource type="Script" path="res://src/components/health_component.gd" id="2_hp"]
 [ext_resource type="Script" path="res://src/components/velocity_component.gd" id="3_vel"]
 [ext_resource type="Script" path="res://src/components/hurtbox_component.gd" id="4_hurt"]
 [ext_resource type="Script" path="res://src/components/hitbox_component.gd" id="5_hit"]
+[ext_resource type="Script" path="res://src/entities/boss_visual.gd" id="6_visual"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_boss"]
 radius = 24.0
@@ -23,6 +24,9 @@ offset_top = -24.0
 offset_right = 24.0
 offset_bottom = 24.0
 color = Color(0.8, 0, 0, 1)
+
+[node name="BossVisual" type="Node2D" parent="."]
+script = ExtResource("6_visual")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_boss")

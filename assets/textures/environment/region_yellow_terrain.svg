@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="sandField" cx="50%" cy="50%" r="58%">
+      <stop offset="0" stop-color="#f2c864" stop-opacity="0.34"/>
+      <stop offset="0.56" stop-color="#c59a4e" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#6c5b43" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="talisman" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff0a4" stop-opacity="0.92"/>
+      <stop offset="0.5" stop-color="#e6a947" stop-opacity="0.64"/>
+      <stop offset="1" stop-color="#9a5e32" stop-opacity="0.24"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="512" cy="512" rx="474" ry="414" fill="url(#sandField)"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M84 392 C224 326 360 354 482 420 C614 492 760 498 942 388" stroke="#f5d77c" stroke-opacity="0.23" stroke-width="18"/>
+    <path d="M72 506 C224 448 348 474 474 542 C620 620 778 608 956 496" stroke="#d89e46" stroke-opacity="0.28" stroke-width="10"/>
+    <path d="M128 632 C258 568 374 588 506 666 C632 738 756 724 900 636" stroke="#ffe39a" stroke-opacity="0.18" stroke-width="5"/>
+    <path d="M248 236 C360 196 478 214 572 286" stroke="#f1c766" stroke-opacity="0.17" stroke-width="8"/>
+  </g>
+  <g fill="url(#talisman)" stroke="#fff1ab" stroke-opacity="0.55" stroke-width="3">
+    <path d="M764 246 L804 258 L792 358 L750 344 Z"/>
+    <path d="M222 668 L260 674 L250 770 L212 760 Z"/>
+  </g>
+  <g fill="none" stroke="#f4d37a" stroke-opacity="0.48" stroke-width="6" stroke-linecap="round">
+    <path d="M150 742 C184 696 210 702 232 744"/>
+    <path d="M824 724 C856 680 884 690 906 732"/>
+  </g>
+  <g fill="#fff0a1" fill-opacity="0.46">
+    <circle cx="176" cy="358" r="7"/>
+    <circle cx="852" cy="570" r="6"/>
+    <circle cx="544" cy="350" r="5"/>
+  </g>
+</svg>

@@ -16,7 +16,10 @@ func _ready() -> void:
 	_apply_window_settings()
 
 func set_resolution(value: Vector2i) -> void:
-	resolution = value
+	if not RESOLUTION_OPTIONS.has(value):
+		resolution = DEFAULT_RESOLUTION
+	else:
+		resolution = value
 	if not fullscreen:
 		_apply_window_settings()
 	_save_settings()
@@ -43,7 +46,8 @@ func _load_settings() -> void:
 
 	var width := int(config.get_value("display", "width", DEFAULT_RESOLUTION.x))
 	var height := int(config.get_value("display", "height", DEFAULT_RESOLUTION.y))
-	resolution = Vector2i(width, height)
+	var loaded_resolution := Vector2i(width, height)
+	resolution = loaded_resolution if RESOLUTION_OPTIONS.has(loaded_resolution) else DEFAULT_RESOLUTION
 	fullscreen = bool(config.get_value("display", "fullscreen", false))
 
 func _save_settings() -> void:
@@ -51,4 +55,7 @@ func _save_settings() -> void:
 	config.set_value("display", "width", resolution.x)
 	config.set_value("display", "height", resolution.y)
 	config.set_value("display", "fullscreen", fullscreen)
-	config.save(SETTINGS_PATH)
+	if config.save(SETTINGS_PATH) != OK:
+		# Settings are optional; a failed save should never prevent the run from
+		# starting or leave an invalid in-memory configuration behind.
+		resolution = DEFAULT_RESOLUTION if not RESOLUTION_OPTIONS.has(resolution) else resolution

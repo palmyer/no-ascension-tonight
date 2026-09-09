@@ -1,0 +1,64 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://src/entities/life_core.gd" id="1_core"]
+[ext_resource type="Texture2D" path="res://assets/textures/aura/life_core_aura_red.svg" id="2_red"]
+[ext_resource type="Texture2D" path="res://assets/textures/aura/life_core_aura_green.svg" id="3_green"]
+[ext_resource type="Texture2D" path="res://assets/textures/aura/life_core_aura_blue.svg" id="4_blue"]
+[ext_resource type="Texture2D" path="res://assets/textures/aura/life_core_aura_yellow.svg" id="5_yellow"]
+
+[sub_resource type="CircleShape2D" id="CoreShape"]
+radius = 42.0
+
+[sub_resource type="CircleShape2D" id="AuraShape"]
+radius = 150.0
+
+[node name="LifeCore" type="StaticBody2D" groups=["LifeCore"]]
+collision_layer = 0
+script = ExtResource("1_core")
+
+[node name="CoreGlow" type="Polygon2D" parent="."]
+z_index = -1
+color = Color(0.32, 0.9, 0.72, 0.12)
+polygon = PackedVector2Array(0, -68, 48, -48, 68, 0, 48, 48, 0, 68, -48, 48, -68, 0, -48, -48)
+
+[node name="CoreVisual" type="Polygon2D" parent="."]
+z_index = 1
+color = Color(0.27, 0.79, 0.55, 1)
+polygon = PackedVector2Array(0, -36, 25, -22, 34, 0, 25, 22, 0, 36, -25, 22, -34, 0, -25, -22)
+
+[node name="CoreSigil" type="Polygon2D" parent="."]
+z_index = 2
+color = Color(0.88, 0.98, 0.84, 0.8)
+polygon = PackedVector2Array(0, -18, 12, 0, 0, 18, -12, 0)
+
+[node name="AuraVisuals" type="Node2D" parent="."]
+z_index = -2
+
+[node name="Red" type="Sprite2D" parent="AuraVisuals"]
+modulate = Color(1, 1, 1, 0.58)
+texture = ExtResource("2_red")
+
+[node name="Green" type="Sprite2D" parent="AuraVisuals"]
+modulate = Color(1, 1, 1, 0.58)
+texture = ExtResource("3_green")
+
+[node name="Blue" type="Sprite2D" parent="AuraVisuals"]
+modulate = Color(1, 1, 1, 0.58)
+texture = ExtResource("4_blue")
+
+[node name="Yellow" type="Sprite2D" parent="AuraVisuals"]
+modulate = Color(1, 1, 1, 0.58)
+texture = ExtResource("5_yellow")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CoreShape")
+
+[node name="AuraArea" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 2
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="AuraArea"]
+polygon = PackedVector2Array(150, 0, 106, 106, 0, 150, -106, 106, -150, 0, -106, -106, 0, -150, 106, -106)
+
+[connection signal="body_entered" from="AuraArea" to="." method="_on_aura_area_body_entered"]
+[connection signal="body_exited" from="AuraArea" to="." method="_on_aura_area_body_exited"]
