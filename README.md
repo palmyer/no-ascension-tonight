@@ -1,23 +1,60 @@
-# No Ascension Tonight
+# 今晚不飞升
 
-今晚不飞升，Godot 4.6 游戏原型。
+《今晚不飞升》是一个使用 Godot 4.7 制作的修仙题材领地生存 Roguelike 原型。
 
-## 目录
+玩家白天离开中央灵核，前往四方山门附近斩妖并收集四色灵性；夜晚回到灵核附近，在不断增强的妖潮中守住核心。玩家需要在探索收益、回防风险、单武器构筑和山门挑战之间做选择，并在第 20 波完成飞升终局。
 
-- `src/autoload/`: 全局单例
-- `src/components/`: 可复用组件
-- `src/entities/`: 游戏实体脚本
-- `src/ui/`: UI 脚本
-- `src/autoload/settings_manager.gd`: 显示设置持久化
-- `src/weapons/`: 武器逻辑
-- `src/tests/`: 测试场景脚本
-- `scenes/ui/`: 启动 Logo、主菜单和设置界面
-- `scenes/levels/`: 可进入的关卡场景
-- `scenes/entities/`: 实体场景
-- `scenes/world/`: 世界与关卡场景
-- `scenes/weapons/`: 武器场景
-- `scenes/tests/`: 测试场景
-- `assets/textures/`: 按用途整理的纹理资源
-- `docs/`: 设计文档与任务记录
+## 当前玩法
 
-主入口：`scenes/ui/startup_logo.tscn`
+- 昼夜交替：白天远征收集资源，夜晚守护灵核。
+- 四色灵性：红、绿、蓝、黄四种资源影响成长和灵核光环。
+- 属性构筑：火、爆、毒、藤、水、冰、风、雷八种属性支持单属性专精和多属性反应。
+- 单局单武器：每局选择一把本命武器，通过升级卡改变攻击方式和战斗路线。
+- 山门挑战：可以提前挑战四方大妖，击败后减少对应方向的后续压力。
+- Roguelike 成长：升级时从三张卡中选择基础成长、属性成长或机制转折。
+
+当前原型包含 20 波流程、四把本命武器、灵核耐久、波间事件、属性状态与反应、四方山门和飞升妖王终局。实际数值以 `src/autoload/wave_manager.gd` 及代码实现为准。
+
+## 运行项目
+
+1. 使用 Godot 4.7 或兼容的 Godot 4.x 版本打开本目录。
+2. 运行项目主场景：`scenes/ui/startup_logo.tscn`。
+3. 桌面端默认使用 WASD 移动、鼠标攻击、空格释放主动诀技；移动端提供基础触控入口。
+
+项目配置位于 `project.godot`，默认视口为 1920×1080，窗口覆盖尺寸为 1280×720，并支持横屏拉伸。
+
+## 目录结构
+
+```text
+assets/                 运行时纹理和其他美术资源
+player_design/          主角设计稿和生成记录
+scenes/                 Godot 场景文件，按实体、关卡、UI、武器、世界和测试分类
+src/
+  autoload/             全局单例和流程管理
+  components/           可复用的生命、碰撞、属性、移动等组件
+  effects/              伤害区、危险区和技能特效
+  entities/             玩家、敌人、Boss、投射物和掉落物
+  levels/               关卡逻辑
+  tests/                自动化测试和视觉烟雾测试
+  ui/                   HUD、菜单、升级、调谐和触控界面
+  weapons/              武器基类及具体武器逻辑
+docs/                   设计规则、术语、任务和架构决策
+AGENTS.md               所有开发代理和贡献者共用的项目规范
+project.godot           Godot 工程配置和主场景入口
+```
+
+## 文档入口
+
+文档按职责划分，每类信息只保留一个来源：
+
+- [`docs/DESIGN.md`](docs/DESIGN.md)：唯一的详细玩法和系统规则来源。
+- [`docs/GLOSSARY.md`](docs/GLOSSARY.md)：游戏术语和系统名词定义。
+- [`docs/TASKS.md`](docs/TASKS.md)：当前仍有价值的待办事项和发行阻塞项。
+- [`docs/ADR-001-weapon-progression.md`](docs/ADR-001-weapon-progression.md)：单局单本命武器的架构决策记录。
+- [`AGENTS.md`](AGENTS.md)：适用于所有开发工具和代理的统一协作、代码和文档规范。
+
+当实现与设计文档不一致时，先判断是代码尚未同步还是设计发生变化；新增或改变系统前先更新 `docs/DESIGN.md`，不要在工具专属文件中复制一份规则。
+
+## 当前状态
+
+项目已经具备可运行的核心玩法原型，剩余工作主要集中在 Android 正式发布配置、触控体验、音频、数值平衡、真机和多分辨率验收，以及发行材料准备。详见 [`docs/TASKS.md`](docs/TASKS.md)。
