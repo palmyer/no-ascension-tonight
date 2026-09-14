@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/tests/card_catalog_coverage_test.gd" id="1_card_catalog"]
+
+[node name="CardCatalogCoverageTest" type="Node"]
+script = ExtResource("1_card_catalog")

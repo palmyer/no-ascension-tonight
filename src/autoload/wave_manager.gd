@@ -232,7 +232,8 @@ func get_boss_stats(boss_id: String) -> Dictionary:
 		"contact_damage": float(data.get("contact_damage", 10.0)) * damage_factor * resonance["damage"],
 		"dash_damage": float(data.get("dash_damage", 20.0)) * damage_factor * resonance["damage"],
 		"charge_cooldown": float(data.get("charge_cooldown", 5.0)),
-		"charge_aim_time": float(data.get("charge_aim_time", 2.0))
+		"charge_aim_time": float(data.get("charge_aim_time", 2.0)),
+		"ability_cooldown": float(data.get("ability_cooldown", 6.0))
 	}
 
 func try_spawn_boss(boss_id: String, boss_scene: PackedScene, spawn_position: Vector2) -> bool:
@@ -291,6 +292,7 @@ func complete_run():
 	run_completed_flag = true
 	GameManager.game_started = false
 	GameManager.run_won = true
+	GameManager.run_end_reason = "ascension_complete"
 	get_tree().paused = false
 	EventBus.run_completed.emit(GameManager.current_wave)
 	run_completed.emit(GameManager.current_wave)

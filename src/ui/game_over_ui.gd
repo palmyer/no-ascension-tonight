@@ -3,6 +3,7 @@ extends CanvasLayer
 @onready var panel = $Panel
 @onready var restart_button = $Panel/VBoxContainer/RestartButton
 @onready var message_label = $Panel/VBoxContainer/MessageLabel
+@onready var summary_label: Label = get_node_or_null("Panel/VBoxContainer/SummaryLabel") as Label
 
 func _ready():
 	visible = false
@@ -17,11 +18,15 @@ func _on_game_over():
 		message_label.text = "灵核破碎\nGAME OVER"
 	else:
 		message_label.text = "GAME OVER"
+	if summary_label:
+		summary_label.text = GameManager.get_run_summary_text()
 	visible = true
 	get_tree().paused = true
 
 func _on_run_completed(final_wave: int):
 	message_label.text = "ASCENSION COMPLETE · WAVE %d" % final_wave
+	if summary_label:
+		summary_label.text = GameManager.get_run_summary_text()
 	visible = true
 	get_tree().paused = true
 

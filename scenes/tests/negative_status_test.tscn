@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/tests/negative_status_test.gd" id="1_negative_status"]
+
+[node name="NegativeStatusTest" type="Node2D"]
+script = ExtResource("1_negative_status")

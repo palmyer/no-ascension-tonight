@@ -42,13 +42,16 @@ func _apply_attribute(attribute_id: String, mastery_level: int, attack_damage: f
 			_trigger_reaction(reaction, str(existing_id), attribute_id, mastery_level, attack_damage, origin)
 
 	var definition: Dictionary = GameManager.ATTRIBUTE_DEFINITIONS[attribute_id]
-	var status: Dictionary = statuses.get(attribute_id, {"stacks": 0, "time": 0.0, "tick_time": 0.0, "mastery": 0})
+	var status: Dictionary = statuses.get(attribute_id, {"stacks": 0, "time": 0.0, "tick_time": 0.0, "mastery": 0, "bound": false})
 	var mastery_bonus := maxi(mastery_level - 1, 0)
 	var next_stacks := mini(int(status.get("stacks", 0)) + 1, int(definition.get("max_stacks", 1)) + mastery_bonus)
 	status["stacks"] = next_stacks
 	var duration_multiplier := 1.0 + mastery_bonus * 0.15
 	status["time"] = maxf(float(status.get("time", 0.0)), float(definition.get("duration", 2.0)) * duration_multiplier)
 	status["mastery"] = maxi(int(status.get("mastery", 0)), mastery_level)
+	if attribute_id == "vine" and next_stacks >= int(definition.get("max_stacks", 1)) and not bool(status.get("bound", false)):
+		stunned_time = maxf(stunned_time, 0.55 + mastery_level * 0.15)
+		status["bound"] = true
 	var detonator_threshold := int(GameManager.get_upgrade_modifier("status_detonator_stacks"))
 	if detonator_threshold > 0 and next_stacks >= detonator_threshold and attack_damage > 0.0:
 		var detonation_damage := attack_damage * GameManager.get_upgrade_modifier("status_detonator_damage_pct", 0.32)

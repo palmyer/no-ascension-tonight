@@ -15,10 +15,19 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	var image := get_viewport().get_texture().get_image()
-	if image:
-		image.save_png(OUTPUT_PATH)
-	print("Card offer visual smoke screenshot: ", OUTPUT_PATH)
+	if DisplayServer.get_name() == "headless":
+		print("Card offer visual smoke: level-up startup passed; render capture unavailable in headless mode")
+	else:
+		var texture: Texture2D = get_viewport().get_texture()
+		if texture:
+			var image := texture.get_image()
+			if image:
+				image.save_png(OUTPUT_PATH)
+				print("Card offer visual smoke: level-up startup passed; rendered image saved: ", OUTPUT_PATH)
+			else:
+				print("Card offer visual smoke: level-up startup passed; rendered image was unavailable")
+		else:
+			print("Card offer visual smoke: level-up startup passed; rendered image was unavailable")
 
 	get_tree().paused = false
 	GameManager.reset_game()

@@ -64,7 +64,6 @@ func _build_player() -> void:
 	player.position = Vector2(0, 90)
 	player.collision_layer = 2
 	player.collision_mask = 9
-	add_child(player)
 
 	var health: HealthComponent = HealthComponent.new()
 	health.name = "HealthComponent"
@@ -92,6 +91,10 @@ func _build_player() -> void:
 	camera.limit_right = 1230
 	camera.limit_bottom = 900
 	player.add_child(camera)
+	# Assemble all runtime children before entering the scene tree. Player's
+	# onready references and _ready() initialization must see its health and
+	# hurtbox components on the first frame of a real run.
+	add_child(player)
 
 func _build_spawner() -> void:
 	var spawner: EnemySpawner = EnemySpawner.new()

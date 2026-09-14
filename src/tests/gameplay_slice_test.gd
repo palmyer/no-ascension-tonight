@@ -24,6 +24,12 @@ func _run_checks() -> void:
 		errors.append("player was not instantiated")
 	if not core:
 		errors.append("life core was not instantiated")
+	var summary_label := level.find_child("SummaryLabel", true, false)
+	if not summary_label:
+		errors.append("run summary UI was not created")
+	else:
+		if not str(game_manager.get_run_summary_text()).contains("武器："):
+			errors.append("run summary did not include selected weapon")
 
 	if player and player.has_method("try_special"):
 		player.try_special()

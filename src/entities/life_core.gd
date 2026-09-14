@@ -49,6 +49,7 @@ func receive_damage(amount: float) -> void:
 		destroyed = true
 		EventBus.core_destroyed.emit()
 		GameManager.game_started = false
+		GameManager.run_end_reason = "core_destroyed"
 		EventBus.game_over.emit()
 
 func repair(amount: float) -> void:

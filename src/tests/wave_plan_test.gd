@@ -18,6 +18,13 @@ func _run_checks() -> void:
 		16: "YellowSand",
 		20: "AscensionKing"
 	}
+	var expected_boss_ability_cooldowns := {
+		"RedCrack": 7.0,
+		"GreenPlague": 6.0,
+		"BlueArc": 5.2,
+		"YellowSand": 5.0,
+		"AscensionKing": 4.5
+	}
 	var expected_route_counts := {1: 1, 4: 2, 7: 3, 10: 4}
 
 	for wave in range(1, wave_manager.MAX_WAVES + 1):
@@ -28,6 +35,11 @@ func _run_checks() -> void:
 			errors.append("wave %d boss trigger mismatch" % wave)
 		if expected_route_counts.has(wave) and int(data.get("directions", 0)) != expected_route_counts[wave]:
 			errors.append("wave %d route count mismatch" % wave)
+
+	for boss_id in expected_boss_ability_cooldowns:
+		var boss_stats: Dictionary = wave_manager.get_boss_stats(boss_id)
+		if not is_equal_approx(float(boss_stats.get("ability_cooldown", -1.0)), expected_boss_ability_cooldowns[boss_id]):
+			errors.append("boss ability cooldown mismatch: %s" % boss_id)
 
 	for mix_id in wave_manager.ENEMY_MIXES:
 		var weights: Array = wave_manager.ENEMY_MIXES[mix_id]

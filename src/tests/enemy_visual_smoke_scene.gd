@@ -31,10 +31,19 @@ func _ready() -> void:
 	for _frame in range(2):
 		await get_tree().process_frame
 
-	var image := get_viewport().get_texture().get_image()
-	if image:
-		image.save_png(OUTPUT_PATH)
-	print("Enemy visual smoke screenshot: ", OUTPUT_PATH)
+	if DisplayServer.get_name() == "headless":
+		print("Enemy visual smoke: scene startup passed; render capture unavailable in headless mode")
+	else:
+		var texture: Texture2D = get_viewport().get_texture()
+		if texture:
+			var image := texture.get_image()
+			if image:
+				image.save_png(OUTPUT_PATH)
+				print("Enemy visual smoke: scene startup passed; rendered image saved: ", OUTPUT_PATH)
+			else:
+				print("Enemy visual smoke: scene startup passed; rendered image was unavailable")
+		else:
+			print("Enemy visual smoke: scene startup passed; rendered image was unavailable")
 
 	GameManager.reset_game()
 	get_tree().quit()

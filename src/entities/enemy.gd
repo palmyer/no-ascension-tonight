@@ -43,6 +43,7 @@ const MAGIC_TEXTURE = preload("res://assets/textures/enemies/enemy_blue_magic_fu
 const HEAL_TEXTURE  = preload("res://assets/textures/enemies/enemy_green_heal_full.png")
 const HEAVY_TEXTURE = preload("res://assets/textures/enemies/enemy_heavy_full.png")
 const ASSASSIN_TEXTURE = preload("res://assets/textures/enemies/enemy_assassin_full.png")
+const STATUS_VIEW_SCRIPT = preload("res://src/entities/enemy_status_view.gd")
 
 func _ready():
 	add_to_group("Enemy")
@@ -106,6 +107,9 @@ func _ready():
 	attribute_component = AttributeStatusComponent.new()
 	attribute_component.health_component = health_component
 	add_child(attribute_component)
+	var status_view := STATUS_VIEW_SCRIPT.new()
+	status_view.configure(attribute_component)
+	add_child(status_view)
 
 	health_component.died.connect(_on_died)
 	player = get_tree().get_first_node_in_group("Player")
@@ -207,6 +211,7 @@ func _physics_process(delta: float):
 					melee_attack_timer -= delta
 					if melee_attack_timer <= 0:
 						play_attack_anim()
+						_damage_player(float($HitboxComponent.damage))
 						melee_attack_timer = contact_interval
 		elif is_night and core:
 			move_target = core.global_position
@@ -258,6 +263,11 @@ func _process_core_attack(delta: float) -> bool:
 		core_attack_timer = attack_interval
 		play_attack_anim()
 	return true
+
+func _damage_player(amount: float) -> void:
+	if not player or not is_instance_valid(player) or not player.has_method("take_damage"):
+		return
+	player.take_damage(maxf(amount, 0.0))
 
 func heal_nearby_enemies() -> bool:
 	var enemies = get_tree().get_nodes_in_group("Enemy")
@@ -363,6 +373,7 @@ func add_fracture(attack_damage: float, stacks_to_add: int = 1) -> void:
 	fracture_triggering = false
 
 func _on_died():
+	GameManager.record_enemy_kill()
 	var player_node := get_tree().get_first_node_in_group("Player")
 	if player_node and player_node.has_method("register_enemy_kill"):
 		player_node.register_enemy_kill(self)

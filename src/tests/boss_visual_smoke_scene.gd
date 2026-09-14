@@ -20,9 +20,18 @@ func _ready() -> void:
 	GameManager.current_state = GameManager.GameState.NIGHT
 	for _frame in range(90):
 		await get_tree().process_frame
-	var image := get_viewport().get_texture().get_image()
-	if image:
-		image.save_png(OUTPUT_PATH)
-	print("Boss visual smoke screenshot: ", OUTPUT_PATH)
+	if DisplayServer.get_name() == "headless":
+		print("Boss visual smoke: scene startup passed; render capture unavailable in headless mode")
+	else:
+		var texture: Texture2D = get_viewport().get_texture()
+		if texture:
+			var image := texture.get_image()
+			if image:
+				image.save_png(OUTPUT_PATH)
+				print("Boss visual smoke: scene startup passed; rendered image saved: ", OUTPUT_PATH)
+			else:
+				print("Boss visual smoke: scene startup passed; rendered image was unavailable")
+		else:
+			print("Boss visual smoke: scene startup passed; rendered image was unavailable")
 	GameManager.reset_game()
 	get_tree().quit()

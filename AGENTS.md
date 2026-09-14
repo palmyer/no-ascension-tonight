@@ -26,9 +26,9 @@
 - `src/effects/`：伤害区、危险区和技能视觉效果。
 - `src/levels/`：关卡脚本。
 - `src/ui/`：HUD、菜单、升级、调谐和触控界面。
-- `src/weapons/`：武器基类和具体武器逻辑。
+- `src/weapons/`：唯一的 `WeaponRuntime` 武器定义与运行时契约；不再保留按武器拆分的旧继承体系。
 - `src/tests/`：自动化测试和视觉烟雾测试脚本。
-- `scenes/`：场景资源，按 `entities/`、`levels/`、`ui/`、`weapons/`、`world/` 和 `tests/` 分类。
+- `scenes/`：场景资源，按 `entities/`、`levels/`、`ui/`、`world/` 和 `tests/` 分类；武器不再单独使用场景资源。
 - `assets/textures/`：运行时纹理，按用途分类保存。
 - `player_design/`：主角设计素材和生成记录，不作为运行时逻辑目录。
 - `docs/`：设计、术语、任务和架构决策；根目录 README 负责项目介绍。

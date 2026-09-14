@@ -2,36 +2,17 @@ extends Node
 
 const DAMAGE_ZONE_SCRIPT = preload("res://src/effects/damage_zone.gd")
 const SKILL_BURST_VISUAL = preload("res://src/effects/skill_burst_visual.gd")
+const WEAPON_RUNTIME_SCRIPT = preload("res://src/weapons/weapon_runtime.gd")
 
 enum GameState { DAY, SHOP, NIGHT }
 var current_state: GameState = GameState.DAY
 var current_wave: int = 1
 var game_started: bool = false
 var run_won: bool = false
+var run_end_reason: String = ""
 
-const STARTING_WEAPON_ORDER = ["sword", "blade", "spear", "musket"]
-const STARTING_WEAPONS = {
-	"sword": {
-		"name": "引霜灵剑",
-		"subtitle": "平衡近战",
-		"description": "攻守均衡，挥斩稳定，适合第一次踏入秘境。"
-	},
-	"blade": {
-		"name": "破鳞钢刃",
-		"subtitle": "快速连斩",
-		"description": "出手更快，贴身压制妖兽，但攻击距离较短。"
-	},
-	"spear": {
-		"name": "龙脊长枪",
-		"subtitle": "长距爆发",
-		"description": "攻击距离与伤害更高，回身较慢，需要预判走位。"
-	},
-	"musket": {
-		"name": "火符连铳",
-		"subtitle": "远程守线",
-		"description": "远距离发射符弹，适合守住灵核外围。"
-	}
-}
+const STARTING_WEAPON_ORDER = WEAPON_RUNTIME_SCRIPT.WEAPON_ORDER
+const STARTING_WEAPONS = WEAPON_RUNTIME_SCRIPT.WEAPON_DEFINITIONS
 var selected_weapon_id: String = "sword"
 
 const ATTRIBUTE_ORDER = ["fire", "blast", "poison", "vine", "water", "ice", "wind", "thunder"]
@@ -41,7 +22,7 @@ const ATTRIBUTE_DEFINITIONS = {
 	"poison": {"color": 1, "name": "毒", "display_name": "毒蚀", "description": "叠加毒层，降低敌人恢复并持续腐蚀。", "duration": 5.0, "max_stacks": 5, "tick_damage": 1.5},
 	"vine": {"color": 1, "name": "藤", "display_name": "荆棘", "description": "减速目标，叠满后短暂束缚。", "duration": 3.5, "max_stacks": 3, "tick_damage": 1.0},
 	"water": {"color": 2, "name": "水", "display_name": "浸润", "description": "浸润目标，强化后续属性反应。", "duration": 4.0, "max_stacks": 3, "tick_damage": 0.0},
-	"ice": {"color": 2, "name": "冰", "display_name": "凝霜", "description": "积累寒霜，减速并冻结目标。", "duration": 4.0, "max_stacks": 3, "tick_damage": 0.5},
+	"ice": {"color": 2, "name": "冰", "display_name": "凝霜", "description": "积累寒霜并减速目标；与其他属性反应时冻结。", "duration": 4.0, "max_stacks": 3, "tick_damage": 0.5},
 	"wind": {"color": 3, "name": "风", "display_name": "风刃", "description": "留下风痕，扩散附近属性状态。", "duration": 3.0, "max_stacks": 3, "tick_damage": 1.0},
 	"thunder": {"color": 3, "name": "雷", "display_name": "引雷", "description": "积累雷印，触发链式闪电与麻痹。", "duration": 3.0, "max_stacks": 3, "tick_damage": 1.0}
 }
@@ -70,13 +51,6 @@ const ATTRIBUTE_REACTIONS = {
 	"water|thunder": {"id": "conduct", "name": "导电", "damage_multiplier": 0.90, "effect": "chain", "chain_count": 3},
 	"water|wind": {"id": "water_blade", "name": "水刃", "damage_multiplier": 0.75, "effect": "stagger"},
 	"wind|thunder": {"id": "storm_charge", "name": "风雷", "damage_multiplier": 0.85, "effect": "chain", "chain_count": 2}
-}
-
-const WEAPON_ATTRIBUTES = {
-	"sword": ["fire"],
-	"blade": ["poison"],
-	"spear": ["ice"],
-	"musket": ["thunder"]
 }
 
 # Debug 开关
@@ -137,6 +111,18 @@ var attribute_overload_stacks: int = 0
 var overkill_chain_depth: int = 0
 var transmute_charge: float = 0.0
 
+# 本局统计只用于胜负结算和构筑复盘，不参与局外成长。
+var run_stats: Dictionary = {
+	"kills": 0,
+	"bosses_defeated": 0,
+	"orbs_collected": 0,
+	"reactions": 0,
+	"specials_used": 0,
+	"cards_acquired": 0,
+	"player_damage_taken": 0.0,
+	"core_damage_taken": 0.0
+}
+
 # Boss 状态跟踪
 var boss_states = {
 	"RedCrack": false,
@@ -149,6 +135,11 @@ var boss_states = {
 func _ready():
 	EventBus.orb_collected.connect(_on_orb_collected)
 	EventBus.boss_defeated.connect(_on_boss_defeated)
+	EventBus.attribute_reaction.connect(_on_attribute_reaction)
+	EventBus.special_used.connect(_on_special_used)
+	EventBus.card_acquired.connect(_on_card_acquired)
+	EventBus.player_damaged.connect(_on_player_damaged)
+	EventBus.core_damaged.connect(_on_core_damaged)
 	update_current_stats()
 
 func _process(delta: float) -> void:
@@ -159,12 +150,57 @@ func _process(delta: float) -> void:
 func _on_boss_defeated(boss_id: String):
 	if boss_states.has(boss_id):
 		boss_states[boss_id] = true
+		run_stats["bosses_defeated"] = int(run_stats.get("bosses_defeated", 0)) + 1
 		if debug_mode:
 			print("[DEBUG] GameManager: Boss %s defeated!" % boss_id)
+
+func _on_attribute_reaction(_reaction_name: String, _position: Vector2) -> void:
+	run_stats["reactions"] = int(run_stats.get("reactions", 0)) + 1
+
+func _on_special_used(_skill_name: String, _hit_count: int) -> void:
+	run_stats["specials_used"] = int(run_stats.get("specials_used", 0)) + 1
+
+func _on_card_acquired(_card_id: String, _rank: int) -> void:
+	run_stats["cards_acquired"] = int(run_stats.get("cards_acquired", 0)) + 1
+
+func _on_player_damaged(damage: float) -> void:
+	run_stats["player_damage_taken"] = float(run_stats.get("player_damage_taken", 0.0)) + maxf(damage, 0.0)
+
+func _on_core_damaged(damage: float, _current_integrity: float, _max_integrity: float) -> void:
+	run_stats["core_damage_taken"] = float(run_stats.get("core_damage_taken", 0.0)) + maxf(damage, 0.0)
+
+func record_enemy_kill() -> void:
+	run_stats["kills"] = int(run_stats.get("kills", 0)) + 1
+
+func get_run_end_reason_text() -> String:
+	match run_end_reason:
+		"player_died": return "玩家倒下"
+		"core_destroyed": return "灵核被摧毁"
+		"ascension_complete": return "飞升完成"
+		_: return "进行中"
+
+func get_run_summary_text() -> String:
+	var selected := get_selected_weapon()
+	var cards := UpgradeManager.get_acquired_card_summary() if get_node_or_null("/root/UpgradeManager") else "暂无"
+	return "结果：%s\n武器：%s\n到达：第 %d / %d 波 · 等级 %d\n击杀：%d · Boss：%d · 属性反应：%d\n诀技：%d 次 · 灵珠：%d · 选卡：%d 次\n构筑：%s" % [
+		get_run_end_reason_text(),
+		str(selected.get("name", selected_weapon_id)),
+		current_wave,
+		WaveManager.MAX_WAVES,
+		player_level,
+		int(run_stats.get("kills", 0)),
+		int(run_stats.get("bosses_defeated", 0)),
+		int(run_stats.get("reactions", 0)),
+		int(run_stats.get("specials_used", 0)),
+		int(run_stats.get("orbs_collected", 0)),
+		int(run_stats.get("cards_acquired", 0)),
+		cards
+	]
 
 func _on_orb_collected(type: int):
 	orb_counts[type] += 1
 	total_orbs += 1
+	run_stats["orbs_collected"] = int(run_stats.get("orbs_collected", 0)) + 1
 	if has_upgrade("orb_alchemy"):
 		var player := get_tree().get_first_node_in_group("Player")
 		var health := player.get_node_or_null("HealthComponent") if player else null
@@ -586,7 +622,7 @@ func select_starting_weapon(weapon_id: String) -> void:
 		selected_weapon_id = weapon_id
 
 func get_selected_weapon() -> Dictionary:
-	return STARTING_WEAPONS.get(selected_weapon_id, STARTING_WEAPONS["sword"])
+	return Dictionary(STARTING_WEAPONS.get(selected_weapon_id, STARTING_WEAPONS["sword"])).duplicate(true)
 
 func start_new_run() -> void:
 	reset_game()
@@ -605,6 +641,7 @@ func get_min_energy_level() -> int:
 func reset_game():
 	game_started = false
 	run_won = false
+	run_end_reason = ""
 	current_state = GameState.DAY
 	current_wave = 1
 	total_orbs = 0
@@ -624,6 +661,16 @@ func reset_game():
 	attribute_overload_stacks = 0
 	overkill_chain_depth = 0
 	transmute_charge = 0.0
+	run_stats = {
+		"kills": 0,
+		"bosses_defeated": 0,
+		"orbs_collected": 0,
+		"reactions": 0,
+		"specials_used": 0,
+		"cards_acquired": 0,
+		"player_damage_taken": 0.0,
+		"core_damage_taken": 0.0
+	}
 	
 	for key in boss_states:
 		boss_states[key] = false
@@ -634,9 +681,8 @@ func reset_game():
 	# 重置基础属性
 	base_stats = DEFAULT_BASE_STATS.duplicate(true)
 	attribute_mastery.clear()
-	var starting_attributes: Array = WEAPON_ATTRIBUTES.get(selected_weapon_id, ["fire"])
-	for attribute_id in starting_attributes:
-		attribute_mastery[attribute_id] = 3
+	var weapon_definition: Dictionary = STARTING_WEAPONS.get(selected_weapon_id, STARTING_WEAPONS["sword"])
+	attribute_mastery[str(weapon_definition.get("attribute", "fire"))] = 3
 	var upgrade_manager := get_node_or_null("/root/UpgradeManager")
 	if upgrade_manager:
 		upgrade_manager.reset_run()

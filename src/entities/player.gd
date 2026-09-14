@@ -2,10 +2,7 @@ extends CharacterBody2D
 class_name Player
 
 const MOVE_SPEED := 250.0
-const SWORD_TEXTURE = preload("res://assets/textures/weapons/sword_48.png")
-const BLADE_TEXTURE = preload("res://assets/textures/weapons/sword_48.png")
-const SPEAR_TEXTURE = preload("res://assets/textures/weapons/sword_48.png")
-const MUSKET_TEXTURE = preload("res://assets/textures/weapons/sword_48.png")
+const WEAPON_RUNTIME_SCRIPT = preload("res://src/weapons/weapon_runtime.gd")
 const PROJECTILE_SCENE = preload("res://scenes/entities/projectiles/bullet.tscn")
 const SKILL_BURST_VISUAL = preload("res://src/effects/skill_burst_visual.gd")
 const BASE_ATTACK_RANGE := 1600.0
@@ -22,6 +19,7 @@ var ranged_attack_timer := 0.0
 var ranged_attack_range := 760.0
 var ranged_cooldown := 0.8
 var melee_range_multiplier := 1.0
+var weapon_runtime: WeaponRuntime
 var regeneration_timer := 0.0
 var special_cooldown_remaining: float = 0.0
 var slash_count: int = 0
@@ -46,11 +44,11 @@ var ranged_shot_count: int = 0
 
 @onready var health_component: HealthComponent = get_node_or_null("HealthComponent")
 @onready var hurtbox_component: HurtboxComponent = get_node_or_null("HurtboxComponent")
-@onready var sword_pivot: Node2D = $Sprite2D/SwordPivot
-@onready var sword_anim: AnimationPlayer = $Sprite2D/SwordPivot/sword/AnimationPlayer
-@onready var sword_sprite: Sprite2D = $Sprite2D/SwordPivot/sword
-@onready var sword_hitbox: Area2D = $Sprite2D/SwordPivot/sword/SwordHitbox
-@onready var sword_hitbox_shape: CollisionShape2D = $Sprite2D/SwordPivot/sword/SwordHitbox/CollisionShape2D
+@onready var sword_pivot: Node2D = $Sprite2D/WeaponPivot
+@onready var sword_anim: AnimationPlayer = $Sprite2D/WeaponPivot/WeaponVisual/WeaponAnimation
+@onready var sword_sprite: Sprite2D = $Sprite2D/WeaponPivot/WeaponVisual
+@onready var sword_hitbox: Area2D = $Sprite2D/WeaponPivot/WeaponVisual/WeaponHitbox
+@onready var sword_hitbox_shape: CollisionShape2D = $Sprite2D/WeaponPivot/WeaponVisual/WeaponHitbox/CollisionShape2D
 
 var slash_hit_targets: Dictionary = {}
 var health_bar: ProgressBar
@@ -62,6 +60,7 @@ var swing_extension_amount: float = 0.0
 
 func _ready() -> void:
 	add_to_group("Player")
+	weapon_runtime = WEAPON_RUNTIME_SCRIPT.new(GameManager.selected_weapon_id)
 	_apply_starting_weapon()
 	_setup_health_bar()
 	if health_component:
@@ -76,7 +75,7 @@ func _ready() -> void:
 		sword_hitbox.body_entered.connect(_on_sword_hitbox_body_entered)
 	if sword_sprite:
 		sword_base_position = sword_sprite.position
-	$Sprite2D/SwordPivot/sword.show_behind_parent = false
+	$Sprite2D/WeaponPivot/WeaponVisual.show_behind_parent = false
 
 func _setup_health_bar() -> void:
 	health_bar = ProgressBar.new()
@@ -121,7 +120,7 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_process_regeneration(delta)
 
-	if uses_ranged_weapon:
+	if weapon_runtime and weapon_runtime.is_ranged():
 		_process_ranged_attack(delta)
 		queue_redraw()
 		return
@@ -141,7 +140,7 @@ func _physics_process(delta: float) -> void:
 				slash_hit_targets.clear()
 				slash_count += 1
 				current_slash_is_sweep = GameManager.has_upgrade("sword_sweep") and slash_count % maxi(int(GameManager.get_upgrade_modifier("sword_sweep_interval", 3.0)), 1) == 0
-				current_attack_charged = GameManager.selected_weapon_id == "spear" and GameManager.has_upgrade("spear_pierce") and movement_since_attack >= 180.0
+				current_attack_charged = weapon_runtime.weapon_id == "spear" and GameManager.has_upgrade("spear_pierce") and movement_since_attack >= 180.0
 				current_attack_momentum = GameManager.has_upgrade("momentum_edge") and movement_since_attack >= GameManager.get_upgrade_modifier_or_default("momentum_distance", 220.0)
 				current_attack_afterimage = GameManager.has_upgrade("afterimage") and afterimage_anchor_ready
 				current_afterimage_position = afterimage_anchor_position
@@ -174,53 +173,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		try_special()
 
 func get_special_profile() -> Dictionary:
-	match GameManager.selected_weapon_id:
-		"blade":
-			return {
-				"name": "腐心散",
-				"description": "近身毒爆，命中后回复少量生命。",
-				"damage": 24.0,
-				"radius": 230.0,
-				"cooldown": 8.5,
-				"color": Color("65c579"),
-				"payload": {"poison": 3, "vine": 1},
-				"knockback": 55.0,
-				"heal_per_hit": 4.0
-			}
-		"spear":
-			return {
-				"name": "霜锋震",
-				"description": "大范围冰震，冻结并击退周围妖物。",
-				"damage": 46.0,
-				"radius": 250.0,
-				"cooldown": 10.0,
-				"color": Color("76c8e8"),
-				"payload": {"water": 2, "ice": 3},
-				"knockback": 120.0
-			}
-		"musket":
-			return {
-				"name": "天雷引",
-				"description": "锁定远处五名目标，雷链在敌群间跳跃。",
-				"damage": 34.0,
-				"radius": 900.0,
-				"cooldown": 9.0,
-				"color": Color("e4d15e"),
-				"payload": {"water": 2, "thunder": 3},
-				"max_targets": 5,
-				"chain": true
-			}
-		_:
-			return {
-				"name": "赤焰回环",
-				"description": "引爆身边火印，灼烧并击退一圈妖物。",
-				"damage": 38.0,
-				"radius": 200.0,
-				"cooldown": 8.0,
-				"color": Color("ee8556"),
-				"payload": {"fire": 3, "blast": 2},
-				"knockback": 95.0
-			}
+	if not weapon_runtime:
+		weapon_runtime = WEAPON_RUNTIME_SCRIPT.new(GameManager.selected_weapon_id)
+	return weapon_runtime.get_special_profile()
 
 func get_special_cooldown() -> float:
 	var profile := get_special_profile()
@@ -230,42 +185,9 @@ func get_special_cooldown_remaining() -> float:
 	return special_cooldown_remaining
 
 func get_weapon_status_lines() -> Array[String]:
-	var lines: Array[String] = []
-	match GameManager.selected_weapon_id:
-		"sword":
-			if GameManager.has_upgrade("sword_sweep"):
-				var interval := maxi(int(GameManager.get_upgrade_modifier("sword_sweep_interval", 3.0)), 1)
-				if current_slash_is_sweep:
-					lines.append("回风斩：横扫!")
-				else:
-					lines.append("回风斩：%d/%d" % [slash_count % interval, interval])
-			if GameManager.has_upgrade("sword_burn_trail"):
-				lines.append("焚痕：命中留火")
-		"blade":
-			if GameManager.has_upgrade("blade_combo"):
-				var max_stacks := maxi(int(GameManager.get_upgrade_modifier("blade_combo_max_stacks", 5.0)), 1)
-				if blade_combo_count > 0 and blade_combo_timer > 0.0:
-					lines.append("连刃：%d/%d" % [blade_combo_count, max_stacks])
-				else:
-					lines.append("连刃：待命")
-			if GameManager.has_upgrade("blade_poison_cloud"):
-				lines.append("毒爆：死亡留雾")
-		"spear":
-			if GameManager.has_upgrade("spear_pierce"):
-				if current_attack_charged:
-					lines.append("贯阵：READY")
-				else:
-					var charge_ratio := clampf(movement_since_attack / 180.0, 0.0, 1.0)
-					lines.append("贯阵：%d%%" % int(charge_ratio * 100.0))
-			if GameManager.has_upgrade("spear_shatter"):
-				lines.append("碎冰：冻结追加")
-		"musket":
-			if GameManager.has_upgrade("musket_charge"):
-				var interval := maxi(int(GameManager.get_upgrade_modifier("musket_charge_interval", 5.0)), 1)
-				lines.append("雷符：%d/%d" % [ranged_shot_count % interval, interval])
-			if GameManager.has_upgrade("musket_aura"):
-				lines.append("守线：生效" if GameManager.player_in_aura else "守线：待入阵")
-	return lines
+	if not weapon_runtime:
+		return []
+	return weapon_runtime.get_status_lines(self)
 
 func try_special() -> void:
 	if special_cooldown_remaining > 0.0 or not GameManager.game_started:
@@ -349,39 +271,23 @@ func _spawn_special_visual(radius: float, color: Color, target_positions: Array)
 	host.add_child(visual)
 
 func _apply_starting_weapon() -> void:
-	uses_ranged_weapon = false
+	if not weapon_runtime:
+		weapon_runtime = WEAPON_RUNTIME_SCRIPT.new(GameManager.selected_weapon_id)
+	weapon_runtime.configure(GameManager.selected_weapon_id)
+	uses_ranged_weapon = weapon_runtime.is_ranged()
 	sword_sprite.visible = true
-	# The menu art is high resolution; normalize every weapon to a readable
-	# combat silhouette instead of letting source image dimensions determine
-	# the in-game scale.
-	sword_sprite.scale = Vector2(1.05, 1.05)
-	sword_sprite.texture = SWORD_TEXTURE
-	weapon_damage = 10.0
-	slash_time = 0.2
-	sword_return_time = 0.5
-	melee_range_multiplier = 1.0
-
-	match GameManager.selected_weapon_id:
-		"blade":
-			sword_sprite.texture = BLADE_TEXTURE
-			weapon_damage = 15.0
-			slash_time = 0.17
-			sword_return_time = 0.42
-			melee_range_multiplier = 0.9
-		"spear":
-			sword_sprite.texture = SPEAR_TEXTURE
-			sword_sprite.scale = Vector2(1.05, 1.05)
-			weapon_damage = 22.0
-			slash_time = 0.24
-			sword_return_time = 0.55
-			melee_range_multiplier = 1.25
-		"musket":
-			sword_sprite.texture = MUSKET_TEXTURE
-			sword_sprite.scale = Vector2(0.9, 0.9)
-			weapon_damage = 16.0
-			uses_ranged_weapon = true
-			ranged_attack_range = 760.0
-			ranged_cooldown = 0.8
+	# The runtime definition is the only source for combat values and visual
+	# identity.  Normalize source art at the mount instead of in weapon scenes.
+	sword_sprite.scale = weapon_runtime.get_visual_scale()
+	var texture := weapon_runtime.get_visual_texture()
+	if texture:
+		sword_sprite.texture = texture
+	weapon_damage = weapon_runtime.get_base_damage()
+	slash_time = weapon_runtime.get_slash_time()
+	sword_return_time = weapon_runtime.get_return_time()
+	melee_range_multiplier = weapon_runtime.get_range_multiplier()
+	ranged_attack_range = weapon_runtime.get_ranged_range()
+	ranged_cooldown = weapon_runtime.get_ranged_cooldown()
 
 func _process_ranged_attack(delta: float) -> void:
 	ranged_attack_timer = max(ranged_attack_timer - delta, 0.0)
@@ -492,7 +398,7 @@ func _get_damage_multiplier() -> float:
 	var damage_pct: float = float(GameManager.current_stats.get("damage_pct", 0.0))
 	if not GameManager.player_in_aura:
 		damage_pct += float(GameManager.current_stats.get("outside_aura_damage_pct", 0.0))
-	if GameManager.selected_weapon_id == "musket" and GameManager.player_in_aura:
+	if weapon_runtime and weapon_runtime.weapon_id == "musket" and GameManager.player_in_aura:
 		damage_pct += GameManager.get_upgrade_modifier("musket_aura_damage_pct") * 100.0
 	if GameManager.has_upgrade("attribute_shift") and GameManager.get_active_attribute_ids().size() >= 2:
 		damage_pct += GameManager.get_upgrade_modifier("attribute_shift_damage_pct") * 100.0
@@ -504,13 +410,13 @@ func _get_damage_multiplier() -> float:
 
 func _get_ranged_attack_range() -> float:
 	var range_bonus := maxf(float(GameManager.current_stats.get("attack_range", BASE_ATTACK_RANGE)) - BASE_ATTACK_RANGE, 0.0)
-	return ranged_attack_range + range_bonus
+	return (weapon_runtime.get_ranged_range() if weapon_runtime else ranged_attack_range) + range_bonus
 
 func _draw() -> void:
 	if not debug_attack_visual:
 		return
 	var attack_range: float = _get_attack_trigger_range()
-	if not uses_ranged_weapon:
+	if not (weapon_runtime and weapon_runtime.is_ranged()):
 		attack_range += _get_melee_range_bonus()
 	draw_arc(Vector2.ZERO, attack_range, 0.0, TAU, 64, Color(0.3, 0.8, 1.0, 0.8), 2.0)
 	if target_enemy and is_instance_valid(target_enemy):
@@ -537,7 +443,7 @@ func _get_nearest_enemy() -> Node2D:
 	return nearest
 
 func _get_attack_trigger_range() -> float:
-	if uses_ranged_weapon:
+	if weapon_runtime and weapon_runtime.is_ranged():
 		return _get_ranged_attack_range()
 	if not sword_hitbox:
 		return 80.0
@@ -615,9 +521,6 @@ func _get_target_trigger_radius(target: Node2D) -> float:
 			max_radius = world_radius
 	return max_radius
 
-func spawn_slash() -> void:
-	pass
-
 func _on_sword_hitbox_body_entered(body: Node2D) -> void:
 	_apply_slash_hit(body)
 
@@ -635,7 +538,7 @@ func _apply_slash_hit(body: Node2D, allow_weapon_chain: bool = true, damage_scal
 		attack_damage += GameManager.consume_transmute_charge(body.global_position)
 		if current_slash_is_sweep:
 			attack_damage *= clampf(GameManager.get_upgrade_modifier("sword_sweep_damage_pct", 0.75), 0.1, 1.5)
-		if GameManager.selected_weapon_id == "blade" and GameManager.has_upgrade("blade_combo"):
+		if weapon_runtime and weapon_runtime.weapon_id == "blade" and GameManager.has_upgrade("blade_combo"):
 			var target_id := body.get_instance_id()
 			var combo_window := GameManager.get_upgrade_modifier("blade_combo_window", 1.2)
 			if blade_combo_target_id == target_id and blade_combo_timer > 0.0:
@@ -645,7 +548,7 @@ func _apply_slash_hit(body: Node2D, allow_weapon_chain: bool = true, damage_scal
 				blade_combo_count = 1
 			blade_combo_timer = combo_window
 			attack_damage *= 1.0 + float(blade_combo_count) * GameManager.get_upgrade_modifier("blade_combo_damage_pct", 0.06)
-		if current_attack_charged and GameManager.selected_weapon_id == "spear":
+		if current_attack_charged and weapon_runtime and weapon_runtime.weapon_id == "spear":
 			attack_damage *= 1.15
 		if current_attack_momentum:
 			attack_damage *= 1.0 + GameManager.get_upgrade_modifier("momentum_damage_pct")
@@ -664,7 +567,7 @@ func _apply_slash_hit(body: Node2D, allow_weapon_chain: bool = true, damage_scal
 		if current_attack_afterimage and not afterimage_triggered:
 			GameManager.spawn_afterimage_attack(current_afterimage_position, attack_damage, payload, Color("b797e8"))
 			afterimage_triggered = true
-		if GameManager.selected_weapon_id == "sword" and GameManager.has_upgrade("sword_burn_trail"):
+		if weapon_runtime and weapon_runtime.weapon_id == "sword" and GameManager.has_upgrade("sword_burn_trail"):
 			GameManager.spawn_damage_zone(
 				body.global_position,
 				GameManager.get_upgrade_modifier("sword_burn_trail_radius", 70.0),
@@ -673,11 +576,11 @@ func _apply_slash_hit(body: Node2D, allow_weapon_chain: bool = true, damage_scal
 				{"fire": 1},
 				Color("ee8556")
 			)
-		if GameManager.selected_weapon_id == "spear" and GameManager.has_upgrade("spear_shatter"):
+		if weapon_runtime and weapon_runtime.weapon_id == "spear" and GameManager.has_upgrade("spear_shatter"):
 			var attribute_status := body.get_node_or_null("AttributeStatusComponent")
 			if attribute_status and attribute_status.frozen_time > 0.0:
 				body.take_damage(attack_damage * GameManager.get_upgrade_modifier("spear_shatter_damage_pct", 0.8))
-		if allow_weapon_chain and current_attack_charged and GameManager.selected_weapon_id == "spear":
+		if allow_weapon_chain and current_attack_charged and weapon_runtime and weapon_runtime.weapon_id == "spear":
 			_apply_spear_pierce(body)
 
 func _apply_spear_pierce(primary_target: Node2D) -> void:
@@ -788,6 +691,8 @@ func register_enemy_kill(_enemy: Node2D) -> void:
 func _on_died() -> void:
 	if GameManager.debug_mode:
 		print("Player Died!")
+	GameManager.game_started = false
+	GameManager.run_end_reason = "player_died"
 	if get_node_or_null("/root/EventBus"):
 		EventBus.game_over.emit()
 	queue_free()

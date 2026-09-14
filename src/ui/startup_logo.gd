@@ -1,6 +1,7 @@
 extends Control
 
 const MAIN_MENU_SCENE := "res://scenes/ui/main_menu.tscn"
+const LOGO_TEXTURE := preload("res://assets/textures/ui/game_logo_cultivation_mountain_orb_sun_white_rounded.png")
 var has_transitioned := false
 
 func _ready() -> void:
@@ -26,6 +27,14 @@ func _build_logo() -> void:
 	content.alignment = BoxContainer.ALIGNMENT_CENTER
 	content.add_theme_constant_override("separation", 14)
 	center.add_child(content)
+
+	var logo := TextureRect.new()
+	logo.custom_minimum_size = Vector2(240, 240)
+	logo.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.texture = LOGO_TEXTURE
+	content.add_child(logo)
 
 	var title := Label.new()
 	title.text = "今晚不飞升"

@@ -28,9 +28,14 @@ var hp_label: Label
 var xp_bar: ProgressBar
 var xp_label: Label
 var orb_labels: Array[Label] = []
+var attune_label: Label
+var weapon_label: Label
 var attribute_label: Label
 var aura_label: Label
+var special_key_label: Label
 var special_label: Label
+var special_bar: ProgressBar
+var special_hint: Label
 var toast_label: Label
 var toast_time := 0.0
 var boss_panel: PanelContainer
@@ -68,94 +73,128 @@ func _build_hud() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
 
-	var top_panel := _make_panel(Vector2(24, 22), Vector2(380, 190), GOLD)
+	# Combat HUD hierarchy: threat/readiness at the top, player resources at
+	# the bottom-left, and the run build at the bottom-right.  Every panel is
+	# anchored to a screen edge so the layout stays readable at 16:9 sizes.
+	var top_panel := _make_corner_panel(Vector2(470, 170), Control.PRESET_TOP_LEFT, Vector2(24, 22), GOLD)
 	root.add_child(top_panel)
-	var top_box := VBoxContainer.new()
-	top_box.add_theme_constant_override("separation", 4)
-	top_panel.add_child(top_box)
-	phase_label = _label("昼间 · 向山门进发", 24, TEXT)
-	top_box.add_child(phase_label)
+	var top_box := _panel_box(top_panel, 14)
+	var phase_row := HBoxContainer.new()
+	phase_row.add_theme_constant_override("separation", 12)
+	top_box.add_child(phase_row)
+	phase_label = _label("昼间 · 向山门进发", 23, TEXT)
+	phase_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	phase_row.add_child(phase_label)
+	attune_label = _label("调谐 · 未定", 13, MUTED)
+	attune_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	phase_row.add_child(attune_label)
+	var wave_row := HBoxContainer.new()
+	wave_row.add_theme_constant_override("separation", 12)
+	top_box.add_child(wave_row)
 	wave_label = _label("第 1 / 20 波", 15, GOLD)
-	top_box.add_child(wave_label)
-	timer_label = _label("60 秒", 30, TEXT)
-	top_box.add_child(timer_label)
-	core_bar = _make_bar(GOLD, Vector2(330, 14))
+	wave_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wave_row.add_child(wave_label)
+	timer_label = _label("60 秒", 26, TEXT)
+	timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	wave_row.add_child(timer_label)
+	core_bar = _make_bar(GOLD, Vector2(0, 14))
+	core_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_box.add_child(core_bar)
 	core_label = _label("灵核 100 / 100", 13, MUTED)
 	top_box.add_child(core_label)
 
-	var orb_panel := _make_panel(Vector2(1480, 22), Vector2(416, 132), BLUE)
-	orb_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	orb_panel.position = Vector2(-440, 22)
+	var orb_panel := _make_corner_panel(Vector2(450, 166), Control.PRESET_TOP_RIGHT, Vector2(-24, 22), BLUE)
 	root.add_child(orb_panel)
-	var orb_box := VBoxContainer.new()
-	orb_box.add_theme_constant_override("separation", 6)
-	orb_panel.add_child(orb_box)
+	var orb_box := _panel_box(orb_panel, 14)
+	var growth_row := HBoxContainer.new()
+	orb_box.add_child(growth_row)
 	xp_label = _label("修为  LV.1", 17, TEXT)
-	orb_box.add_child(xp_label)
-	xp_bar = _make_bar(BLUE, Vector2(368, 12))
+	xp_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var level_hint := _label("灵性收集", 12, MUTED)
+	level_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	growth_row.add_child(xp_label)
+	growth_row.add_child(level_hint)
+	xp_bar = _make_bar(BLUE, Vector2(0, 12))
+	xp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	orb_box.add_child(xp_bar)
 	var orb_row := HBoxContainer.new()
-	orb_row.add_theme_constant_override("separation", 16)
+	orb_row.add_theme_constant_override("separation", 8)
 	orb_box.add_child(orb_row)
 	for item in [["赤", RED], ["翠", GREEN], ["蓝", BLUE], ["黄", YELLOW]]:
 		var orb_label := _label("%s 0" % item[0], 16, item[1])
-		orb_label.custom_minimum_size = Vector2(76, 24)
+		orb_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		orb_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		orb_row.add_child(orb_label)
 		orb_labels.append(orb_label)
 
-	var build_panel := _make_panel(Vector2(24, 810), Vector2(620, 226), BLUE)
-	build_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	build_panel.position = Vector2(24, -250)
+	var build_panel := _make_corner_panel(Vector2(520, 224), Control.PRESET_BOTTOM_LEFT, Vector2(24, -268), BLUE)
 	root.add_child(build_panel)
-	var build_box := VBoxContainer.new()
-	build_box.add_theme_constant_override("separation", 6)
-	build_panel.add_child(build_box)
+	var build_box := _panel_box(build_panel, 16)
+	var player_row := HBoxContainer.new()
+	player_row.add_theme_constant_override("separation", 12)
+	build_box.add_child(player_row)
+	weapon_label = _label("本命法宝 · 引霜灵剑", 16, GOLD)
+	weapon_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	player_row.add_child(weapon_label)
+	aura_label = _label("灵核光环 · 未进入", 13, MUTED)
+	aura_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	player_row.add_child(aura_label)
 	hp_label = _label("道基 100 / 100", 16, TEXT)
 	build_box.add_child(hp_label)
-	hp_bar = _make_bar(GREEN, Vector2(570, 12))
+	hp_bar = _make_bar(GREEN, Vector2(0, 12))
+	hp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	build_box.add_child(hp_bar)
 	attribute_label = _label("属性  无", 15, TEXT)
 	attribute_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	build_box.add_child(attribute_label)
-	aura_label = _label("灵核光环  ·  未进入", 14, MUTED)
-	build_box.add_child(aura_label)
-	special_label = _label("空格 · 诀技就绪", 15, GOLD)
-	special_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	build_box.add_child(special_label)
+	var special_row := HBoxContainer.new()
+	special_row.add_theme_constant_override("separation", 10)
+	build_box.add_child(special_row)
+	special_key_label = _label("SPACE", 13, GOLD)
+	special_key_label.add_theme_stylebox_override("normal", _make_style(Color("172f35"), GOLD, 1, 5))
+	special_row.add_child(special_key_label)
+	special_label = _label("诀技 · 就绪", 19, GOLD)
+	special_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	special_row.add_child(special_label)
+	special_bar = _make_bar(GOLD, Vector2(0, 10))
+	special_bar.custom_minimum_size = Vector2(112, 10)
+	special_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	special_row.add_child(special_bar)
+	special_hint = _label("主动诀技", 12, MUTED)
+	special_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	build_box.add_child(special_hint)
 
-	var help_label := _label("WASD 移动   ·   鼠标自动攻击   ·   空格 诀技   ·   Esc 暂停", 13, MUTED)
-	help_label.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	help_label.position = Vector2(28, -30)
-	help_label.size = Vector2(760, 24)
+	var help_label := _label("WASD / 触控移动   ·   自动攻击   ·   SPACE 诀技   ·   ESC 暂停", 13, MUTED)
+	help_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	help_label.position = Vector2(-390, -30)
+	help_label.size = Vector2(780, 24)
+	help_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(help_label)
 
 	toast_label = _label("", 21, GOLD)
 	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	toast_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	toast_label.position = Vector2(-400, 148)
+	toast_label.position = Vector2(-400, 192)
 	toast_label.size = Vector2(800, 40)
 	toast_label.visible = false
 	root.add_child(toast_label)
 
-	boss_panel = _make_panel(Vector2(710, 26), Vector2(500, 116), RED)
-	boss_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	boss_panel.position = Vector2(-250, 26)
+	boss_panel = _make_corner_panel(Vector2(560, 126), Control.PRESET_CENTER_TOP, Vector2(-280, 246), RED)
 	boss_panel.visible = false
 	root.add_child(boss_panel)
-	var boss_box := VBoxContainer.new()
-	boss_box.add_theme_constant_override("separation", 5)
-	boss_panel.add_child(boss_box)
+	var boss_box := _panel_box(boss_panel, 14)
 	boss_title = _label("大妖", 19, TEXT)
 	boss_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	boss_box.add_child(boss_title)
-	boss_bar = _make_bar(RED, Vector2(450, 14))
+	boss_bar = _make_bar(RED, Vector2(0, 14))
+	boss_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	boss_box.add_child(boss_bar)
 	boss_hint = _label("", 13, MUTED)
 	boss_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	boss_box.add_child(boss_hint)
 
 	var build_status := BUILD_STATUS_SCRIPT.new()
+	build_status.name = "RunBuildHud"
 	root.add_child(build_status)
 
 	var touch_controls := TOUCH_CONTROLS_SCRIPT.new()
@@ -176,8 +215,8 @@ func _build_level_up_overlay() -> void:
 	var shell := PanelContainer.new()
 	shell.name = "CardShell"
 	shell.set_anchors_preset(Control.PRESET_CENTER)
-	shell.position = Vector2(-720, -450)
-	shell.size = Vector2(1440, 900)
+	shell.position = Vector2(-620, -360)
+	shell.size = Vector2(1240, 720)
 	var shell_style := _make_style(Color("0b232b"), Color("b08b4f"), 2, 18)
 	shell_style.shadow_color = Color(0.0, 0.0, 0.0, 0.5)
 	shell_style.shadow_size = 24
@@ -188,28 +227,28 @@ func _build_level_up_overlay() -> void:
 	var title := _label("灵性突破  ·  三选一", 36, GOLD)
 	title.name = "Label"
 	title.set_anchors_preset(Control.PRESET_CENTER)
-	title.position = Vector2(-420, -390)
+	title.position = Vector2(-420, -320)
 	title.size = Vector2(840, 54)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	control.add_child(title)
 	var subtitle := _label("", 16, MUTED)
 	subtitle.name = "Subtitle"
 	subtitle.set_anchors_preset(Control.PRESET_CENTER)
-	subtitle.position = Vector2(-600, -330)
+	subtitle.position = Vector2(-600, -268)
 	subtitle.size = Vector2(1200, 32)
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	control.add_child(subtitle)
 	var cards := HBoxContainer.new()
 	cards.name = "HBoxContainer"
 	cards.set_anchors_preset(Control.PRESET_CENTER)
-	cards.position = Vector2(-590, -245)
+	cards.position = Vector2(-590, -206)
 	cards.size = Vector2(1180, 500)
 	cards.add_theme_constant_override("separation", 22)
 	control.add_child(cards)
 	var footer := _label("", 15, MUTED)
 	footer.name = "Footer"
 	footer.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	footer.position = Vector2(-600, -80)
+	footer.position = Vector2(-600, -42)
 	footer.size = Vector2(1200, 30)
 	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	control.add_child(footer)
@@ -240,8 +279,8 @@ func _build_game_over_overlay() -> void:
 	var panel := Panel.new()
 	panel.name = "Panel"
 	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.position = Vector2(-260, -150)
-	panel.size = Vector2(520, 300)
+	panel.position = Vector2(-300, -230)
+	panel.size = Vector2(600, 460)
 	panel.add_theme_stylebox_override("panel", _make_style(PANEL, GOLD, 2, 12))
 	var box := VBoxContainer.new()
 	box.name = "VBoxContainer"
@@ -253,6 +292,11 @@ func _build_game_over_overlay() -> void:
 	message.name = "MessageLabel"
 	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(message)
+	var summary := _label("", 15, MUTED)
+	summary.name = "SummaryLabel"
+	summary.custom_minimum_size = Vector2(520, 230)
+	summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(summary)
 	var restart := Button.new()
 	restart.name = "RestartButton"
 	restart.text = "重新入山"
@@ -271,6 +315,9 @@ func _refresh_hud() -> void:
 	var is_day := GameManager.current_state == GameManager.GameState.DAY
 	phase_label.text = "昼间 · 向山门进发" if is_day else "夜间 · 守住灵核"
 	phase_label.add_theme_color_override("font_color", GOLD if is_day else BLUE)
+	var attune_names := ["赤 · 伤害", "翠 · 生命", "蓝 · 攻速", "黄 · 移速"]
+	var attuned_type := int(GameManager.get("attuned_type"))
+	attune_label.text = "调谐 · %s" % (attune_names[attuned_type] if attuned_type >= 0 and attuned_type < attune_names.size() else "未定")
 	wave_label.text = "第 %d / %d 波" % [GameManager.current_wave, WaveManager.MAX_WAVES]
 	timer_label.text = "%02d 秒" % maxi(int(ceil(WaveManager.time_left)), 0)
 	var core := get_tree().get_first_node_in_group("LifeCore")
@@ -286,13 +333,20 @@ func _refresh_hud() -> void:
 			hp_bar.max_value = health.max_health
 			hp_bar.value = health.current_health
 			hp_label.text = "道基 %d / %d" % [int(health.current_health), int(health.max_health)]
+		var selected_weapon := GameManager.get_selected_weapon()
+		weapon_label.text = "本命法宝 · %s" % str(selected_weapon.get("name", "未命名法宝"))
 		attribute_label.text = "属性  " + GameManager.get_attribute_summary()
-		aura_label.text = "灵核光环  ·  已激活" if GameManager.player_in_aura else "灵核光环  ·  未进入"
+		aura_label.text = "灵核光环 · 已激活" if GameManager.player_in_aura else "灵核光环 · 未进入"
 		aura_label.add_theme_color_override("font_color", GREEN if GameManager.player_in_aura else MUTED)
 		if player.has_method("get_special_profile"):
 			var profile: Dictionary = player.get_special_profile()
 			var remaining := float(player.get_special_cooldown_remaining())
-			special_label.text = "空格 · %s  [%s]" % [profile.get("name", "诀技"), "就绪" if remaining <= 0.0 else "冷却 %.1fs" % remaining]
+			var cooldown := maxf(float(player.get_special_cooldown()), 0.1) if player.has_method("get_special_cooldown") else 1.0
+			special_bar.max_value = cooldown
+			special_bar.value = clampf(cooldown - remaining, 0.0, cooldown)
+			special_label.text = "%s  ·  就绪" % profile.get("name", "诀技") if remaining <= 0.0 else "%s  ·  %.1fs" % [profile.get("name", "诀技"), remaining]
+			special_label.add_theme_color_override("font_color", GOLD if remaining <= 0.0 else MUTED)
+			special_hint.text = str(profile.get("description", "主动诀技"))
 	for index in range(orb_labels.size()):
 		orb_labels[index].text = "%s %d" % [["赤", "翠", "蓝", "黄"][index], GameManager.orb_counts[index]]
 	xp_bar.max_value = maxi(GameManager.xp_required, 1)
@@ -416,6 +470,25 @@ func _action_button(button_text: String) -> Button:
 	button.add_theme_stylebox_override("normal", _make_style(PANEL_ALT, Color("638c84"), 1, 7))
 	button.add_theme_stylebox_override("hover", _make_style(Color("244a4c"), GOLD, 2, 7))
 	return button
+
+func _panel_box(panel: PanelContainer, margin: int) -> VBoxContainer:
+	var margin_container := MarginContainer.new()
+	margin_container.add_theme_constant_override("margin_left", margin)
+	margin_container.add_theme_constant_override("margin_top", margin)
+	margin_container.add_theme_constant_override("margin_right", margin)
+	margin_container.add_theme_constant_override("margin_bottom", margin)
+	panel.add_child(margin_container)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	margin_container.add_child(box)
+	return box
+
+func _make_corner_panel(panel_size: Vector2, preset: Control.LayoutPreset, panel_position: Vector2, accent: Color) -> PanelContainer:
+	var panel := _make_panel(Vector2.ZERO, panel_size, accent)
+	panel.set_anchors_preset(preset)
+	panel.position = panel_position
+	panel.size = panel_size
+	return panel
 
 func _make_panel(position: Vector2, panel_size: Vector2, accent: Color) -> PanelContainer:
 	var panel := PanelContainer.new()

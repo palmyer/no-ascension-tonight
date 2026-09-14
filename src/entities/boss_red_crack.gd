@@ -3,6 +3,7 @@ class_name BossRedCrack
 
 const BOSS_BULLET_SCENE = preload("res://scenes/entities/projectiles/bullet.tscn")
 const HAZARD_ZONE_SCRIPT = preload("res://src/effects/hazard_zone.gd")
+const STATUS_VIEW_SCRIPT = preload("res://src/entities/enemy_status_view.gd")
 
 @onready var health_component: HealthComponent = $HealthComponent
 @onready var velocity_component: VelocityComponent = $VelocityComponent
@@ -26,6 +27,8 @@ var boss_stats: Dictionary = {}
 var attribute_component: AttributeStatusComponent
 var core: Node2D
 var core_attack_timer: float = 0.0
+var contact_damage_timer: float = 0.0
+var dash_damage_timer: float = 0.0
 var ability_timer: float = 2.5
 var enraged: bool = false
 var ability_casting: bool = false
@@ -62,6 +65,9 @@ func _ready():
 	attribute_component = AttributeStatusComponent.new()
 	attribute_component.health_component = health_component
 	add_child(attribute_component)
+	var status_view := STATUS_VIEW_SCRIPT.new()
+	status_view.configure(attribute_component, true)
+	add_child(status_view)
 	
 	health_component.died.connect(_on_died)
 	target = get_tree().get_first_node_in_group("Player")
@@ -98,6 +104,8 @@ func get_boss_status_text() -> String:
 	return "秘术冷却  %.1fs" % ability_timer
 
 func _physics_process(delta: float):
+	contact_damage_timer = maxf(contact_damage_timer - delta, 0.0)
+	dash_damage_timer = maxf(dash_damage_timer - delta, 0.0)
 	if health_label:
 		health_label.visible = GameManager.debug_mode
 		health_label.text = boss_display_name + ": " + str(int(health_component.current_health)) + "/" + str(int(health_component.max_health))
@@ -265,17 +273,30 @@ func _process_core_attack(delta: float) -> bool:
 	return true
 
 func check_contact_damage():
+	if contact_damage_timer > 0.0:
+		return
 	var areas = contact_hitbox.get_overlapping_areas()
 	for area in areas:
-		if area is HurtboxComponent and area.owner.is_in_group("Player"):
-			area.emit_signal("hit", contact_hitbox.damage)
+		if not area is HurtboxComponent:
+			continue
+		var player := area.get_parent()
+		if player and player.is_in_group("Player") and player.has_method("take_damage"):
+			player.take_damage(contact_hitbox.damage)
+			contact_damage_timer = 0.8
+			return
 
 func check_dash_damage():
 	if not dash_hitbox.monitorable: return
+	if dash_damage_timer > 0.0: return
 	var areas = dash_hitbox.get_overlapping_areas()
 	for area in areas:
-		if area is HurtboxComponent and area.owner.is_in_group("Player"):
-			area.emit_signal("hit", dash_hitbox.damage)
+		if not area is HurtboxComponent:
+			continue
+		var player := area.get_parent()
+		if player and player.is_in_group("Player") and player.has_method("take_damage"):
+			player.take_damage(dash_hitbox.damage)
+			dash_damage_timer = 0.6
+			return
 
 func start_aiming():
 	current_state = State.AIMING

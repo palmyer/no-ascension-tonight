@@ -34,6 +34,12 @@ func _run_checks() -> void:
 		errors.append("second rank stat card could not be acquired")
 	if not is_equal_approx(float(game_manager.base_stats.get("damage_pct", 0.0)), 22.0):
 		errors.append("second rank damage growth mismatch")
+	if not upgrade_manager.acquire_card("stat_damage"):
+		errors.append("third rank stat card could not be acquired")
+	if upgrade_manager.acquire_card("stat_damage"):
+		errors.append("card exceeded its configured maximum rank")
+	if upgrade_manager.get_card_rank("stat_damage") != 3:
+		errors.append("card rank state did not stop at rank three")
 	if not is_equal_approx(upgrade_manager.get_card_value_for_rank("stat_damage", 3), 15.0):
 		errors.append("third rank card preview value mismatch")
 
