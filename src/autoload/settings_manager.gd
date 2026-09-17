@@ -10,6 +10,23 @@ const RESOLUTION_OPTIONS = [
 
 var resolution: Vector2i = DEFAULT_RESOLUTION
 var fullscreen: bool = false
+# 特效质量：high 完整反馈；low 面向低端真机，跳过火花并收紧飘字并发。
+var visual_quality: String = "high"
+
+func is_fx_low_quality() -> bool:
+	return visual_quality == "low"
+
+## 静态访问入口：打击反馈等静态工厂在无法引用实例时使用。
+static func fx_low_quality() -> bool:
+	var tree := Engine.get_main_loop() as SceneTree
+	if not tree or not tree.root:
+		return false
+	var node := tree.root.get_node_or_null("SettingsManager")
+	return node != null and str(node.get("visual_quality")) == "low"
+
+func set_visual_quality(value: String) -> void:
+	visual_quality = "low" if value == "low" else "high"
+	_save_settings()
 
 func _ready() -> void:
 	_load_settings()
@@ -49,12 +66,14 @@ func _load_settings() -> void:
 	var loaded_resolution := Vector2i(width, height)
 	resolution = loaded_resolution if RESOLUTION_OPTIONS.has(loaded_resolution) else DEFAULT_RESOLUTION
 	fullscreen = bool(config.get_value("display", "fullscreen", false))
+	visual_quality = "low" if str(config.get_value("performance", "visual_quality", "high")) == "low" else "high"
 
 func _save_settings() -> void:
 	var config := ConfigFile.new()
 	config.set_value("display", "width", resolution.x)
 	config.set_value("display", "height", resolution.y)
 	config.set_value("display", "fullscreen", fullscreen)
+	config.set_value("performance", "visual_quality", visual_quality)
 	if config.save(SETTINGS_PATH) != OK:
 		# Settings are optional; a failed save should never prevent the run from
 		# starting or leave an invalid in-memory configuration behind.

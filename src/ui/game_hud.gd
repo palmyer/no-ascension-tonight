@@ -60,6 +60,18 @@ func _connect_events() -> void:
 	EventBus.attribute_reaction.connect(_on_attribute_reaction)
 	EventBus.intermission_event_chosen.connect(_on_intermission_event_chosen)
 	EventBus.card_acquired.connect(_on_card_acquired)
+	EventBus.pause_toggle_requested.connect(_on_pause_toggle_requested)
+
+func _on_pause_toggle_requested() -> void:
+	# 系统返回键：暂停菜单打开则继续；升级/调谐等其他覆盖层期间忽略。
+	if not GameManager.game_started:
+		return
+	if pause_overlay and pause_overlay.visible:
+		_resume_game()
+		return
+	if get_tree().paused:
+		return
+	_open_pause_menu()
 
 func _process(delta: float) -> void:
 	toast_time = maxf(toast_time - delta, 0.0)
