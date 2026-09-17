@@ -30,6 +30,15 @@ var attribute_component: AttributeStatusComponent
 var fracture_stacks: int = 0
 var fracture_time: float = 0.0
 var fracture_triggering: bool = false
+var is_elite: bool = false
+var flank_side: float = 1.0
+# 土豆兄弟式行走动画：弹跳步频 + 左右摇摆。
+var walk_time: float = 0.0
+var dying: bool = false
+
+const DEMON_CORE_SCRIPT = preload("res://src/entities/demon_core.gd")
+const DAMAGE_NUMBER_SCRIPT = preload("res://src/effects/damage_number.gd")
+const HIT_SPARKS_SCRIPT = preload("res://src/effects/hit_sparks.gd")
 
 @export var orb_scene: PackedScene = preload("res://scenes/entities/pickups/spirit_orb.tscn")
 @onready var bullet_pkg: PackedScene = load(bullet_scene_path)
@@ -58,7 +67,7 @@ func _ready():
 		EnemyType.MELEE:
 			sprite.texture = MELEE_TEXTURE
 			speed = 110.0
-			$HitboxComponent.damage = 25.0
+			$HitboxComponent.damage = 8.0
 		EnemyType.ARROW:
 			sprite.texture = ARROW_TEXTURE
 			speed = 75.0
@@ -77,13 +86,15 @@ func _ready():
 			sprite.texture = HEAVY_TEXTURE
 			sprite.scale = Vector2.ONE * 0.07
 			speed = 58.0
-			$HitboxComponent.damage = 32.0
+			$HitboxComponent.damage = 12.0
 		EnemyType.ASSASSIN:
 			sprite.texture = ASSASSIN_TEXTURE
 			sprite.scale = Vector2.ONE * 0.07
 			speed = 155.0
 			aggro_range = 520.0
-			$HitboxComponent.damage = 18.0
+			$HitboxComponent.damage = 6.0
+			# 固定一侧包抄方向，避免每帧抖动导致突袭妖原地画圈。
+			flank_side = 1.0 if randf() < 0.5 else -1.0
 
 
 	var scaling := WaveManager.get_enemy_scaling(GameManager.current_state == GameManager.GameState.NIGHT)
@@ -96,12 +107,19 @@ func _ready():
 
 	var base_health := 10.0
 	match enemy_type:
-		EnemyType.MELEE: base_health = 15.0
-		EnemyType.HEAL:  base_health = 8.0
-		EnemyType.HEAVY: base_health = 42.0
-		EnemyType.ASSASSIN: base_health = 9.0
+		EnemyType.MELEE: base_health = 8.0
+		EnemyType.HEAL:  base_health = 5.0
+		EnemyType.HEAVY: base_health = 24.0
+		EnemyType.ASSASSIN: base_health = 6.0
 
 	var scaled_health := base_health * float(scaling.get("health", 1.0))
+	if is_elite:
+		# 精英妖：体型、生命和压制力提升，死亡时必掉妖丹。
+		scaled_health *= 2.6
+		$HitboxComponent.damage *= 1.25
+		sprite.scale *= 1.45
+		speed *= 0.95
+		modulate = Color(1.0, 0.9, 0.66)
 	health_component.max_health = scaled_health
 	health_component.current_health = scaled_health
 	attribute_component = AttributeStatusComponent.new()
@@ -114,6 +132,11 @@ func _ready():
 	health_component.died.connect(_on_died)
 	player = get_tree().get_first_node_in_group("Player")
 	core = get_tree().get_first_node_in_group("LifeCore")
+
+	# 出生弹出：从压缩状态弹到正常体型，与土豆兄弟的刷怪反馈一致。
+	scale = Vector2(0.3, 0.3)
+	var spawn_pop := create_tween()
+	spawn_pop.tween_property(self, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 	setup_debug_ui()
 
@@ -134,12 +157,20 @@ func play_attack_anim():
 	st.tween_property(self, "scale", Vector2(1.0, 1.0), 0.15)
 
 func _physics_process(delta: float):
+	if dying:
+		return
 	fracture_time = maxf(fracture_time - delta, 0.0)
 	if fracture_time <= 0.0:
 		fracture_stacks = 0
 	if health_label:
 		health_label.visible = GameManager.debug_mode
 		health_label.text = "L%d %d" % [enemy_level, int(health_component.current_health)]
+	# 行走动画：移动中弹跳 + 摇摆，静止时缓慢呼吸。
+	var is_moving := velocity.length_squared() > 10.0
+	walk_time += delta * (10.0 if is_moving else 2.2)
+	var bounce_phase := absf(sin(walk_time))
+	sprite.position.y = -bounce_phase * (4.0 if is_moving else 1.2)
+	sprite.rotation = sin(walk_time) * (0.09 if is_moving else 0.03)
 	if attribute_component and attribute_component.is_disabled():
 		velocity = Vector2.ZERO
 		return
@@ -175,6 +206,7 @@ func _physics_process(delta: float):
 
 	var move_target: Vector2 = Vector2.ZERO
 	var active_chase = false
+	var chasing_player = false
 
 	if enemy_type == EnemyType.HEAL:
 		if dist_to_player < current_aggro:
@@ -189,6 +221,7 @@ func _physics_process(delta: float):
 		if dist_to_player < current_aggro:
 			move_target = player.global_position
 			active_chase = true
+			chasing_player = true
 
 			var is_ranged = (enemy_type == EnemyType.ARROW or enemy_type == EnemyType.MAGIC)
 			if is_ranged and dist_to_player < shoot_range:
@@ -223,6 +256,14 @@ func _physics_process(delta: float):
 		var is_ranged = (enemy_type == EnemyType.ARROW or enemy_type == EnemyType.MAGIC)
 		if is_ranged and dist_to_player < shoot_range * 0.5:
 			final_speed *= 0.5
+		# 突袭妖：远距离沿侧翼弧线包抄，进入扑击距离后直线加速扑上。
+		if enemy_type == EnemyType.ASSASSIN and chasing_player:
+			if dist_to_player > 170.0:
+				var to_player = global_position.direction_to(player.global_position)
+				var side = Vector2(-to_player.y, to_player.x) * flank_side
+				direction = (to_player * 0.35 + side).normalized()
+			else:
+				final_speed *= 1.3
 
 		velocity = direction * final_speed
 		move_and_slide()
@@ -305,11 +346,11 @@ func shoot_at_player():
 
 	match enemy_type:
 		EnemyType.ARROW:
-			base_damage = 5.0
+			base_damage = 4.0
 			bullet_color = Color.GREEN
 			bullet_speed = 700.0
 		EnemyType.MAGIC:
-			base_damage = 8.0
+			base_damage = 5.0
 			bullet_color = Color.BLUE
 			bullet_speed = 400.0
 		_:
@@ -331,13 +372,57 @@ func shoot_at_player():
 
 	get_tree().root.add_child(bullet)
 
-func take_damage(amount: float) -> void:
-	if health_component.current_health <= 0.0:
+func resolve_incoming_damage(amount: float) -> void:
+	# HurtboxComponent 的钩子：带上最近一次命中来源，供正面格挡判定方向。
+	var hurtbox := get_node_or_null("HurtboxComponent") as HurtboxComponent
+	var origin := hurtbox.last_hit_origin if hurtbox else Vector2.INF
+	var was_critical := hurtbox.last_hit_critical if hurtbox else false
+	take_damage(maxf(amount, 0.0), origin, was_critical)
+
+func take_damage(amount: float, origin: Vector2 = Vector2.INF, was_critical: bool = false) -> void:
+	if dying or health_component.current_health <= 0.0:
 		return
+	var final_amount := amount
+	var attacker_position := origin if origin.is_finite() else (player.global_position if player and is_instance_valid(player) else global_position + Vector2.UP)
+	if enemy_type == EnemyType.HEAVY and _is_hit_from_front(origin):
+		# 正面厚重护甲：约 120° 扇区内伤害减免 70%，绕后与侧面全额生效。
+		final_amount = amount * 0.3
+		was_critical = false
+		_flash_frontal_block()
 	var health_before := health_component.current_health
-	health_component.damage(amount)
-	if health_component.current_health <= 0.0 and health_before > 0.0 and amount > health_before:
-		GameManager.spawn_overkill_chain(global_position, amount - health_before)
+	health_component.damage(final_amount)
+	_apply_hit_feedback(final_amount, attacker_position, was_critical)
+	if health_component.current_health <= 0.0 and health_before > 0.0 and final_amount > health_before:
+		GameManager.spawn_overkill_chain(global_position, final_amount - health_before)
+
+func _apply_hit_feedback(amount: float, attacker_position: Vector2, was_critical: bool) -> void:
+	if amount <= 0.0:
+		return
+	# 伤害飘字 + 命中火花。
+	DAMAGE_NUMBER_SCRIPT.spawn(get_parent() if get_parent() else get_tree().current_scene, global_position, amount, "crit" if was_critical else "normal")
+	var knock_dir := (global_position - attacker_position).normalized()
+	HIT_SPARKS_SCRIPT.spawn(get_parent() if get_parent() else get_tree().current_scene, global_position - knock_dir * 8.0, knock_dir)
+	# 方向击退：普攻附带小位移，暴击更明显。
+	var knockback := clampf(amount * 0.25, 3.0, 14.0)
+	if was_critical:
+		knockback *= 1.6
+		EventBus.camera_shake_requested.emit(5.0)
+		GameManager.request_hitstop(0.05)
+	global_position += knock_dir * knockback
+
+func _is_hit_from_front(origin: Vector2) -> bool:
+	if not player or not is_instance_valid(player):
+		return true
+	var attacker_position := origin if origin.is_finite() else player.global_position
+	var to_attacker := global_position.direction_to(attacker_position)
+	var facing := global_position.direction_to(player.global_position)
+	return to_attacker.dot(facing) > 0.35
+
+func _flash_frontal_block() -> void:
+	modulate = Color("9fd8e8")
+	var tween = create_tween()
+	tween.tween_interval(0.08)
+	tween.tween_property(self, "modulate", Color.WHITE, 0.12)
 
 func add_fracture(attack_damage: float, stacks_to_add: int = 1) -> void:
 	if not GameManager.has_upgrade("fracture_mark") or health_component.current_health <= 0.0:
@@ -377,6 +462,10 @@ func _on_died():
 	var player_node := get_tree().get_first_node_in_group("Player")
 	if player_node and player_node.has_method("register_enemy_kill"):
 		player_node.register_enemy_kill(self)
+	if is_elite and get_parent():
+		var demon_core := DEMON_CORE_SCRIPT.new()
+		demon_core.global_position = global_position
+		get_parent().call_deferred("add_child", demon_core)
 	spawn_orb()
 	if GameManager.has_upgrade("execution_burst"):
 		GameManager.spawn_burst_damage(
@@ -395,7 +484,16 @@ func _on_died():
 			{"poison": 1},
 			Color("65c579")
 		)
-	queue_free()
+	# 死亡表现：停用逻辑与碰撞，压缩弹开式缩小后消失。
+	dying = true
+	velocity = Vector2.ZERO
+	$HitboxComponent.set_deferred("monitoring", false)
+	$HurtboxComponent.set_deferred("monitoring", false)
+	$HurtboxComponent.set_deferred("monitorable", false)
+	var death_pop := create_tween()
+	death_pop.tween_property(self, "scale", Vector2(1.3, 1.3), 0.06).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	death_pop.tween_property(self, "scale", Vector2.ZERO, 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	death_pop.tween_callback(queue_free)
 
 func spawn_orb():
 	if not orb_scene: return
@@ -407,7 +505,8 @@ func _spawn_orb_once() -> void:
 	var orb = orb_scene.instantiate()
 	orb.global_position = global_position
 	orb.type = GameManager.get_weighted_drop_type()
-	get_parent().add_child(orb)
+	# 死亡信号可能来自物理回调，延迟入树避免 area 状态在 flushing queries 中切换。
+	get_parent().call_deferred("add_child", orb)
 
 func _on_hurtbox_component_hit(damage: float):
 	modulate = Color.RED

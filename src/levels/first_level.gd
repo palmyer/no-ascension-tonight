@@ -10,12 +10,18 @@ const HUD_SCRIPT = preload("res://src/ui/game_hud.gd")
 const HEALTH_SCRIPT = preload("res://src/components/health_component.gd")
 const HURTBOX_SCRIPT = preload("res://src/components/hurtbox_component.gd")
 const MAP_BACKGROUND_TEXTURE = preload("res://assets/textures/environment/first_level_map_diamond.png")
+const TERRAIN_POOL_SCRIPT = preload("res://src/effects/terrain_pool.gd")
+const RELIC_CHEST_SCRIPT = preload("res://src/entities/relic_chest.gd")
 var arena_boundary_points := PackedVector2Array([
-	Vector2(0, -820),
-	Vector2(820, 0),
-	Vector2(0, 820),
-	Vector2(-820, 0),
+	Vector2(0, -1150),
+	Vector2(1150, 0),
+	Vector2(0, 1150),
+	Vector2(-1150, 0),
 ])
+# 残垣石阵的碰撞圆，同时用于 _draw 的视觉表现。
+var terrain_rocks: Array = []
+var chest_spawned_this_day: bool = false
+var tracked_day_wave: int = -1
 
 func _ready() -> void:
 	if not GameManager.game_started:
@@ -27,13 +33,79 @@ func _ready() -> void:
 	_build_spawner()
 	_build_gates()
 	add_child(HUD_SCRIPT.new())
+	set_process(true)
 	queue_redraw()
+
+func _process(_delta: float) -> void:
+	_update_day_chest()
+
+func _update_day_chest() -> void:
+	# 每波昼间最多刷新一个遗物宝箱，给出门收集灵性之外增加探索回报。
+	if GameManager.current_state != GameManager.GameState.DAY:
+		return
+	var day_key := GameManager.current_wave
+	if tracked_day_wave != day_key:
+		tracked_day_wave = day_key
+		chest_spawned_this_day = false
+	if chest_spawned_this_day or GameManager.current_wave < 2:
+		return
+	if randf() > 0.6:
+		return
+	chest_spawned_this_day = true
+	var chest := RELIC_CHEST_SCRIPT.new()
+	chest.global_position = _random_path_position()
+	add_child(chest)
+
+func _random_path_position() -> Vector2:
+	# 沿随机方向的灵路中段取点，并保持点在菱形边界内。
+	var direction := Vector2.from_angle(randf() * TAU)
+	var radius := randf_range(450.0, 790.0)
+	var position := direction * radius
+	var diamond_extent := absf(position.x) + absf(position.y)
+	if diamond_extent > 1010.0:
+		position *= 1010.0 / diamond_extent
+	return position
 
 func _build_world() -> void:
 	# The arena is a single continuous painted map. Region-specific details are
 	# authored into that canvas so no independent decals can leave hard seams.
 	z_index = 0
 	_build_arena_boundary()
+	_build_terrain_rocks()
+	_build_terrain_pools()
+
+func _build_terrain_rocks() -> void:
+	# 四条灵路中段各两组残垣乱石，收窄通道并给夜潮分股。碰撞与视觉同源。
+	var body := StaticBody2D.new()
+	body.name = "TerrainRocks"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var directions := [Vector2.UP, Vector2.DOWN, Vector2.RIGHT, Vector2.LEFT]
+	for direction in directions:
+		var perpendicular := Vector2(-direction.y, direction.x)
+		var anchors := [
+			direction * 600.0 + perpendicular * 130.0,
+			direction * 785.0 - perpendicular * 125.0
+		]
+		for anchor in anchors:
+			for offset in [Vector2(-26, 8), Vector2(22, -14), Vector2(4, 30)]:
+				var rock := {"position": anchor + offset, "radius": randf_range(24.0, 38.0)}
+				terrain_rocks.append(rock)
+				var shape := CollisionShape2D.new()
+				var circle := CircleShape2D.new()
+				circle.radius = float(rock.radius)
+				shape.shape = circle
+				shape.position = rock.position
+				body.add_child(shape)
+	add_child(body)
+
+func _build_terrain_pools() -> void:
+	# 两处腐水潭持续削弱潭内敌人，是玩家可以主动利用的防守支点。
+	for pool_position in [Vector2(600, -490), Vector2(-600, 490)]:
+		var pool := TERRAIN_POOL_SCRIPT.new()
+		pool.position = pool_position
+		pool.pool_radius = 110.0
+		add_child(pool)
 
 func _build_arena_boundary() -> void:
 	# Invisible collision follows the four sides of the diamond. This keeps the
@@ -86,10 +158,10 @@ func _build_player() -> void:
 	camera.name = "Camera2D"
 	camera.position_smoothing_enabled = true
 	camera.position_smoothing_speed = 7.0
-	camera.limit_left = -1230
-	camera.limit_top = -900
-	camera.limit_right = 1230
-	camera.limit_bottom = 900
+	camera.limit_left = -1720
+	camera.limit_top = -1260
+	camera.limit_right = 1720
+	camera.limit_bottom = 1260
 	player.add_child(camera)
 	# Assemble all runtime children before entering the scene tree. Player's
 	# onready references and _ready() initialization must see its health and
@@ -100,15 +172,15 @@ func _build_spawner() -> void:
 	var spawner: EnemySpawner = EnemySpawner.new()
 	spawner.name = "EnemySpawner"
 	spawner.enemy_scene = ENEMY_SCENE
-	spawner.spawn_radius = 720.0
+	spawner.spawn_radius = 1000.0
 	add_child(spawner)
 
 func _build_gates() -> void:
 	var gates := [
-		{"name": "赤裂 Boss 房  ·  火爆", "id": "RedCrack", "position": Vector2(0, -760), "color": Color("d85a55")},
-		{"name": "翠疫 Boss 房  ·  毒藤", "id": "GreenPlague", "position": Vector2(0, 760), "color": Color("65c579")},
-		{"name": "蓝弧 Boss 房  ·  水冰", "id": "BlueArc", "position": Vector2(760, 0), "color": Color("69bde1")},
-		{"name": "黄砂 Boss 房  ·  风雷", "id": "YellowSand", "position": Vector2(-760, 0), "color": Color("ddb95b")}
+		{"name": "赤裂 Boss 房  ·  火爆", "id": "RedCrack", "position": Vector2(0, -1070), "color": Color("d85a55")},
+		{"name": "翠疫 Boss 房  ·  毒藤", "id": "GreenPlague", "position": Vector2(0, 1070), "color": Color("65c579")},
+		{"name": "蓝弧 Boss 房  ·  水冰", "id": "BlueArc", "position": Vector2(1070, 0), "color": Color("69bde1")},
+		{"name": "黄砂 Boss 房  ·  风雷", "id": "YellowSand", "position": Vector2(-1070, 0), "color": Color("ddb95b")}
 	]
 	for data in gates:
 		var gate := GATE_SCENE.instantiate()
@@ -123,11 +195,19 @@ func _build_gates() -> void:
 func _draw() -> void:
 	# One continuous 16:9 canvas covers the complete playable gate-to-gate
 	# space. The base fill only protects the camera margins outside that canvas.
-	draw_rect(Rect2(-1800, -1200, 3600, 2400), Color("5f715d"), true)
+	draw_rect(Rect2(-2520, -1750, 5040, 3500), Color("5f715d"), true)
 	# The source art is 16:9, so it is drawn into a corrected world rectangle.
 	# This makes its four tips share the same world radius instead of producing
 	# a horizontally stretched diamond on a widescreen viewport.
-	draw_texture_rect(MAP_BACKGROUND_TEXTURE, Rect2(-1230, -900, 2460, 1800), false)
+	draw_texture_rect(MAP_BACKGROUND_TEXTURE, Rect2(-1720, -1260, 3440, 2520), false)
+	# 残垣乱石的视觉与碰撞圆同源，保证看到的石头就是会挡路的石头。
+	for rock in terrain_rocks:
+		var rock_position: Vector2 = rock.position
+		var rock_radius: float = rock.radius
+		draw_circle(rock_position + Vector2(3, 4), rock_radius, Color(0.10, 0.12, 0.10, 0.5))
+		draw_circle(rock_position, rock_radius, Color("6f7266"))
+		draw_circle(rock_position + Vector2(-rock_radius * 0.25, -rock_radius * 0.3), rock_radius * 0.45, Color("8b8d7d"))
+		draw_arc(rock_position, rock_radius, PI * 1.05, PI * 1.95, 14, Color("a4a694", 0.6), 2.0)
 
 func _draw_soft_territory(direction: Vector2, color: Color) -> void:
 	var normal := Vector2(-direction.y, direction.x)

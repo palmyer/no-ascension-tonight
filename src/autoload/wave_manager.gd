@@ -24,6 +24,8 @@ const ENEMY_MIXES: Dictionary = {
 
 # Explicit wave data keeps balance values inspectable and testable.
 # Budgets count individual enemies, not spawn ticks.
+# 全局密度倍率：等比放大每波昼夜预算，WAVE_PLAN 只保留波间相对节奏。
+const SPAWN_BUDGET_MULTIPLIER := 2.2
 const WAVE_PLAN: Array[Dictionary] = [
 	{"level": 1, "day_budget": 4, "night_budget": 12, "spawn_interval": 2.40, "spawn_batch": 1, "directions": 1, "health_multiplier": 0.85, "damage_multiplier": 0.75, "speed_multiplier": 0.90, "enemy_mix": "tutorial_melee", "boss_id": ""},
 	{"level": 1, "day_budget": 6, "night_budget": 16, "spawn_interval": 2.20, "spawn_batch": 1, "directions": 1, "health_multiplier": 0.90, "damage_multiplier": 0.82, "speed_multiplier": 0.94, "enemy_mix": "tutorial_arrow", "boss_id": ""},
@@ -145,7 +147,7 @@ func get_wave_level(wave_num: int = -1) -> int:
 
 func get_spawn_budget(is_night: bool) -> int:
 	var budget_key := "night_budget" if is_night else "day_budget"
-	return int(get_wave_data().get(budget_key, 0))
+	return int(get_wave_data().get(budget_key, 0) * SPAWN_BUDGET_MULTIPLIER)
 
 func get_spawn_interval() -> float:
 	return max(float(get_wave_data().get("spawn_interval", 1.0)), 0.2)

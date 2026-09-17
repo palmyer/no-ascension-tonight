@@ -71,11 +71,17 @@ func spawn_enemy() -> bool:
 	var jitter = Vector2(randf_range(-50, 50), randf_range(-50, 50))
 	pos += jitter
 
-	pos.x = clamp(pos.x, -radius * 0.98, radius * 0.98)
-	pos.y = clamp(pos.y, -radius * 0.98, radius * 0.98)
+	# 出生点必须落在菱形战场内（|x|+|y| 不超过边界内缩值），
+	# 否则对角方向的刷怪点会在碰撞边界外，玩家无法抵达。
+	var diamond_limit := 1080.0
+	var diamond_extent := absf(pos.x) + absf(pos.y)
+	if diamond_extent > diamond_limit:
+		pos *= diamond_limit / diamond_extent
 
 	var enemy = enemy_scene.instantiate()
 	enemy.enemy_type = pick_enemy_type()
+	if GameManager.current_wave >= 3 and randf() < 0.05 + GameManager.current_wave * 0.002:
+		enemy.is_elite = true
 
 	enemy.global_position = global_position + pos
 	get_parent().add_child(enemy)

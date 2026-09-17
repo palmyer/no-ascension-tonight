@@ -114,9 +114,16 @@ func get_cardinal_radii():
 		base_aura_radius + GameManager.orb_counts[0] * radius_growth_per_orb  # Up (Red)
 	]
 
-	# Up (RedCrack) extends to the map boundary after beheading.
-	if GameManager.boss_states.get("RedCrack", false):
-		cardinal_radii[3] = 2000.0
+	# 已斩首方向的灵路延伸至地图边界。索引与方向对应：3 上(赤裂)、1 下(翠疫)、0 右(蓝弧)、2 左(黄砂)。
+	var road_by_boss := {
+		"RedCrack": 3,
+		"GreenPlague": 1,
+		"BlueArc": 0,
+		"YellowSand": 2
+	}
+	for boss_id in road_by_boss:
+		if GameManager.boss_states.get(boss_id, false):
+			cardinal_radii[int(road_by_boss[boss_id])] = 2000.0
 
 	return cardinal_radii
 

@@ -44,12 +44,34 @@ func _process(_delta: float):
 	queue_redraw()
 
 func _input(event: InputEvent):
-	if visible and event is InputEventMouseButton:
+	if not visible or event_panel:
+		return
+	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			if event.position.y > size.y * 0.64:
 				return
 			if hovered_sector != -1:
 				confirm_selection(hovered_sector)
+	elif event is InputEventScreenTouch and event.pressed:
+		# 触控：按落点直接选扇区，不依赖鼠标悬停。
+		if event.position.y > size.y * 0.64:
+			return
+		var sector := _sector_at(event.position)
+		if sector != -1:
+			confirm_selection(sector)
+
+func _sector_at(position: Vector2) -> int:
+	var offset := position - size / 2.0
+	if offset.length() <= 50.0:
+		return -1
+	var angle := rad_to_deg(offset.angle())
+	if angle >= -135 and angle < -45:
+		return 0
+	elif angle >= -45 and angle < 45:
+		return 1
+	elif angle >= 45 and angle < 135:
+		return 2
+	return 3
 
 func confirm_selection(type: int):
 	# 将 UI 类型映射到 GameManager 类型
@@ -105,10 +127,19 @@ func _show_event_options() -> void:
 		{"id": "harvest", "title": "贪取·丰收", "description": "下一次白天 35% 概率多掉一颗灵性", "color": Color("e6c067")},
 		{"id": "ward", "title": "镇门·护阵", "description": "下一夜灵核获得 18 秒无敌护阵", "color": Color("7bbfe8")}
 	]
+	# 妖丹兑换：持有至少 3 枚时解锁第四个波间事件。
+	if GameManager.demon_core_count >= GameManager.DEMON_REFINE_COST:
+		event_data.append({
+			"id": "demon_refine",
+			"title": "炼丹·淬体",
+			"description": "消耗 3 枚妖丹，八种属性熟练度各 +1（现有 %d 枚）" % GameManager.demon_core_count,
+			"color": Color("e8b64c")
+		})
+	var button_width := 310.0 if event_data.size() <= 3 else 246.0
 	for data in event_data:
 		var button := Button.new()
 		button.text = "%s\n%s" % [data.title, data.description]
-		button.custom_minimum_size = Vector2(310, 112)
+		button.custom_minimum_size = Vector2(button_width, 112)
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.add_theme_font_size_override("font_size", 16)
 		button.add_theme_color_override("font_color", Color("f2e5bf"))

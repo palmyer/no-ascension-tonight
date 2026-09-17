@@ -74,7 +74,7 @@ var xp_required: int = XP_BASE_REQUIREMENT
 
 # 基础属性模板 (唯一来源)
 const DEFAULT_BASE_STATS = {
-	"max_health": 100,
+	"max_health": 70,
 	"damage_pct": 0,
 	"attack_speed": 0,
 	"move_speed": 0,
@@ -131,6 +131,15 @@ var boss_states = {
 	"YellowSand": false,
 	"AscensionKing": false
 }
+
+# 局内妖丹计数：精英妖掉落，波间调谐可消耗兑换「炼丹·淬体」。
+var demon_core_count: int = 0
+const DEMON_REFINE_COST := 3
+
+func add_demon_core() -> void:
+	demon_core_count += 1
+	if debug_mode:
+		print("[DEBUG] GameManager: Demon core collected, total %d" % demon_core_count)
 
 func _ready():
 	EventBus.orb_collected.connect(_on_orb_collected)
@@ -594,6 +603,13 @@ func apply_intermission_event(event_id: String) -> void:
 			next_day_orb_bonus = 0.35
 		"ward":
 			next_night_core_ward = 18.0
+		"demon_refine":
+			# 炼丹·淬体：消耗妖丹，为八种属性熟练度各 +1。
+			if demon_core_count < DEMON_REFINE_COST:
+				return
+			demon_core_count -= DEMON_REFINE_COST
+			for attribute_id in ATTRIBUTE_DEFINITIONS:
+				apply_attribute_upgrade(attribute_id, 1)
 		_:
 			return
 	EventBus.intermission_event_chosen.emit(event_id)
@@ -604,6 +620,23 @@ func activate_night_ward() -> void:
 
 func is_core_warded() -> bool:
 	return active_core_ward_time > 0.0
+
+# 击中停顿：暴击/属性反应/玩家重伤的短促全局减速，带并发保护避免叠加卡顿。
+var hitstop_active: bool = false
+
+func request_hitstop(duration: float = 0.06, time_scale: float = 0.05) -> void:
+	if hitstop_active:
+		return
+	hitstop_active = true
+	Engine.time_scale = time_scale
+	await get_tree().create_timer(duration, true, false, true).timeout
+	Engine.time_scale = 1.0
+	hitstop_active = false
+
+func _notification(what: int) -> void:
+	# Android 系统返回键：转发为暂停切换请求，由 HUD 决定当前语境下的行为。
+	if what == Window.NOTIFICATION_WM_GO_BACK_REQUEST:
+		EventBus.pause_toggle_requested.emit()
 
 func get_core_ward_time_left() -> float:
 	return active_core_ward_time
@@ -674,7 +707,12 @@ func reset_game():
 	
 	for key in boss_states:
 		boss_states[key] = false
-	
+
+	demon_core_count = 0
+	# hitstop 若在重开瞬间处于激活，强制恢复正常时间流速。
+	Engine.time_scale = 1.0
+	hitstop_active = false
+
 	for key in orb_counts:
 		orb_counts[key] = 0
 	
