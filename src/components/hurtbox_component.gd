@@ -10,6 +10,10 @@ signal hit(damage: float)
 @export var low_health_damage_reduction: float = 0.0
 
 var _source_cooldowns: Dictionary = {}
+# 最近一次命中的来源世界坐标，供宿主（如重装妖的正面格挡）判定受击方向。
+var last_hit_origin: Vector2 = Vector2.INF
+# 最近一次命中是否暴击，供伤害飘字与 hitstop 反馈读取。
+var last_hit_critical: bool = false
 
 func _ready():
 	area_entered.connect(_on_area_entered)
@@ -54,6 +58,8 @@ func _apply_hit_from_source(hitbox: HitboxComponent) -> void:
 	hitbox.last_applied_damage = final_damage
 	var owner_node := get_parent()
 	if owner_node and owner_node.has_method("resolve_incoming_damage"):
+		last_hit_origin = hitbox.global_position
+		last_hit_critical = bool(hitbox.last_was_critical)
 		owner_node.resolve_incoming_damage(final_damage)
 	elif health_component:
 		health_component.damage(final_damage)

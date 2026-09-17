@@ -2,12 +2,21 @@ extends Node
 class_name AttributeStatusComponent
 
 const REACTION_COOLDOWN := 0.35
+const DAMAGE_NUMBER_SCRIPT = preload("res://src/effects/damage_number.gd")
 
 var health_component: HealthComponent
 var statuses: Dictionary = {}
 var reaction_cooldowns: Dictionary = {}
 var frozen_time: float = 0.0
 var stunned_time: float = 0.0
+# 0.0-1.0；大妖等强目标用它把冰冻/束缚/硬直时长按比例衰减为软控制。
+var cc_resistance: float = 0.0
+
+func _apply_hard_cc(duration: float) -> void:
+	stunned_time = maxf(stunned_time, duration * (1.0 - clampf(cc_resistance, 0.0, 0.95)))
+
+func _apply_freeze(duration: float) -> void:
+	frozen_time = maxf(frozen_time, duration * (1.0 - clampf(cc_resistance, 0.0, 0.95)))
 
 func _ready() -> void:
 	if not health_component:
@@ -50,7 +59,7 @@ func _apply_attribute(attribute_id: String, mastery_level: int, attack_damage: f
 	status["time"] = maxf(float(status.get("time", 0.0)), float(definition.get("duration", 2.0)) * duration_multiplier)
 	status["mastery"] = maxi(int(status.get("mastery", 0)), mastery_level)
 	if attribute_id == "vine" and next_stacks >= int(definition.get("max_stacks", 1)) and not bool(status.get("bound", false)):
-		stunned_time = maxf(stunned_time, 0.55 + mastery_level * 0.15)
+		_apply_hard_cc(0.55 + mastery_level * 0.15)
 		status["bound"] = true
 	var detonator_threshold := int(GameManager.get_upgrade_modifier("status_detonator_stacks"))
 	if detonator_threshold > 0 and next_stacks >= detonator_threshold and attack_damage > 0.0:
@@ -99,6 +108,19 @@ func _trigger_reaction(reaction: Dictionary, first_attribute: String, second_att
 	reaction_damage *= 1.0 + GameManager.get_upgrade_modifier("reaction_damage_pct")
 	GameManager.add_transmute_charge(reaction_damage)
 	target.take_damage(reaction_damage)
+	# 反应打击反馈：反应主色飘字 + 轻微震屏与击中停顿。
+	if target is Node2D:
+		var reaction_color := Color.WHITE
+		var first_definition: Dictionary = GameManager.ATTRIBUTE_DEFINITIONS.get(first_attribute, {})
+		match int(first_definition.get("color", -1)):
+			0: reaction_color = Color("ef8556")
+			1: reaction_color = Color("8fd48a")
+			2: reaction_color = Color("75d7ef")
+			3: reaction_color = Color("f1d36c")
+		var host := target.get_parent() if target.get_parent() else get_tree().current_scene
+		DAMAGE_NUMBER_SCRIPT.spawn(host, (target as Node2D).global_position, reaction_damage, "reaction", reaction_color)
+		EventBus.camera_shake_requested.emit(3.0)
+		GameManager.request_hitstop(0.04, 0.12)
 	if get_node_or_null("/root/EventBus") and target is Node2D:
 		EventBus.attribute_reaction.emit(str(reaction.get("name", reaction_id)), target.global_position)
 
@@ -107,15 +129,15 @@ func _trigger_reaction(reaction: Dictionary, first_attribute: String, second_att
 		"burst":
 			_damage_nearby_targets(reaction_damage * 0.35)
 			_apply_knockback(origin, 28.0 + mastery_multiplier * 8.0)
-			stunned_time = maxf(stunned_time, 0.25)
+			_apply_hard_cc(0.25)
 		"chain":
 			_chain_damage(reaction_damage * 0.45, int(reaction.get("chain_count", 2)))
 		"burn":
 			_apply_attribute("fire", mastery_level, reaction_damage * 0.25, origin)
 		"freeze", "shatter":
-			frozen_time = maxf(frozen_time, 0.8 + mastery_multiplier * 0.4)
+			_apply_freeze(0.8 + mastery_multiplier * 0.4)
 		"stun", "stagger":
-			stunned_time = maxf(stunned_time, 0.55 + mastery_multiplier * 0.25)
+			_apply_hard_cc(0.55 + mastery_multiplier * 0.25)
 		"spread":
 			_spread_attribute(second_attribute, reaction_damage * 0.25)
 

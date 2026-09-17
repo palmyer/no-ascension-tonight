@@ -4,6 +4,8 @@ class_name BossRedCrack
 const BOSS_BULLET_SCENE = preload("res://scenes/entities/projectiles/bullet.tscn")
 const HAZARD_ZONE_SCRIPT = preload("res://src/effects/hazard_zone.gd")
 const STATUS_VIEW_SCRIPT = preload("res://src/entities/enemy_status_view.gd")
+const DAMAGE_NUMBER_SCRIPT = preload("res://src/effects/damage_number.gd")
+const HIT_SPARKS_SCRIPT = preload("res://src/effects/hit_sparks.gd")
 
 @onready var health_component: HealthComponent = $HealthComponent
 @onready var velocity_component: VelocityComponent = $VelocityComponent
@@ -32,6 +34,7 @@ var dash_damage_timer: float = 0.0
 var ability_timer: float = 2.5
 var enraged: bool = false
 var ability_casting: bool = false
+var charge_trail_timer: float = 0.0
 
 var health_label: Label
 @onready var slash_visual: ColorRect = $WeaponPivot/SlashVisual
@@ -64,6 +67,8 @@ func _ready():
 	health_component.current_health = scaled_health
 	attribute_component = AttributeStatusComponent.new()
 	attribute_component.health_component = health_component
+	# 大妖对硬控制只保留极短定身，避免被反应构筑无限冻结。
+	attribute_component.cc_resistance = 0.85
 	add_child(attribute_component)
 	var status_view := STATUS_VIEW_SCRIPT.new()
 	status_view.configure(attribute_component, true)
@@ -159,10 +164,15 @@ func _physics_process(delta: float):
 		State.CHARGING:
 			velocity = charge_direction * charge_dash_speed * status_speed_multiplier
 			move_and_slide()
-			
+
 			# 冲锋实时伤害检测
 			check_dash_damage()
-			
+			if boss_id == "RedCrack":
+				charge_trail_timer -= delta
+				if charge_trail_timer <= 0.0:
+					_spawn_hazard(global_position, 30.0, 1.4, 6.0, Color("ef6a4f"), false)
+					charge_trail_timer = 0.12
+
 			timer -= delta
 			if timer <= 0:
 				stop_charge()
@@ -210,17 +220,33 @@ func _cast_green_plague() -> void:
 	var target_position := target.global_position if target and is_instance_valid(target) else global_position
 	_spawn_hazard(target_position, 105.0, 3.8, 7.0, Color("65c579"), true)
 	_spawn_hazard(target_position + Vector2.from_angle(randf() * TAU) * 130.0, 68.0, 2.8, 5.0, Color("b4e36c"), false)
+	# 蔓延毒环：以落点为中心向外逐圈扩散，逼迫玩家持续换位。
+	for ring in range(2 if not enraged else 3):
+		var ring_radius := 180.0 + float(ring) * 110.0
+		var ring_duration := 2.6 - float(ring) * 0.4
+		_spawn_hazard(target_position, ring_radius, maxf(ring_duration, 1.4), 5.0, Color("8fd48a"), false)
 
 func _cast_blue_arc() -> void:
 	var aim := global_position.direction_to(target.global_position) if target and is_instance_valid(target) else Vector2.RIGHT
 	for offset in [-0.24, 0.0, 0.24]:
 		_spawn_boss_bullet(aim.rotated(offset), 13.0 if not enraged else 17.0, Color("75d7ef"), 520.0)
+	if enraged:
+		# 狂暴弧矢连射：短暂延迟后追加一轮更宽的扇形弹。
+		var delayed_aim := aim
+		get_tree().create_timer(0.35).timeout.connect(func():
+			if not is_instance_valid(self):
+				return
+			for offset in [-0.42, -0.21, 0.0, 0.21, 0.42]:
+				_spawn_boss_bullet(delayed_aim.rotated(offset), 15.0, Color("9fe7f7"), 560.0)
+		)
 
 func _cast_yellow_sand() -> void:
 	var center := target.global_position if target and is_instance_valid(target) else global_position
 	for index in range(3 if enraged else 2):
 		var angle := TAU * float(index) / float(3 if enraged else 2) + timer
 		_spawn_hazard(center + Vector2.from_angle(angle) * 145.0, 76.0, 2.4, 10.0, Color("d9b34d"), true)
+	# 砂暴：以黄砂大妖自身为中心的持续压迫区，惩罚贴身缠斗。
+	_spawn_hazard(global_position, 130.0 if not enraged else 165.0, 3.2, 8.0, Color("e0c06a"), false)
 
 func _cast_ascension_king() -> void:
 	var center := target.global_position if target and is_instance_valid(target) else global_position
@@ -229,6 +255,9 @@ func _cast_ascension_king() -> void:
 		_spawn_hazard(center + Vector2.from_angle(angle) * 175.0, 62.0, 2.8, 12.0, Color("c966c9"), true)
 	var aim := global_position.direction_to(center)
 	_spawn_boss_bullet(aim, 20.0 if enraged else 16.0, Color("f1cf68"), 560.0)
+	# 八方弹环：向周围均匀射出弹体，玩家必须旋转走位而不是直线后撤。
+	for index in range(8):
+		_spawn_boss_bullet(Vector2.from_angle(TAU * float(index) / 8.0), 12.0, Color("d98ad9"), 380.0)
 
 func _spawn_boss_bullet(direction: Vector2, damage: float, color: Color, bullet_speed: float) -> void:
 	var bullet = BOSS_BULLET_SCENE.instantiate()
@@ -355,6 +384,17 @@ func take_damage(amount: float) -> void:
 	if health_component.current_health <= 0.0:
 		return
 	health_component.damage(amount)
+	# Boss 受击反馈：飘字 + 火花 + 大额伤害震屏。
+	var player_node := get_tree().get_first_node_in_group("Player") as Node2D
+	var attacker_position: Vector2 = player_node.global_position if player_node and is_instance_valid(player_node) else global_position + Vector2.UP
+	var host := get_tree().current_scene if get_tree().current_scene else get_tree().root
+	DAMAGE_NUMBER_SCRIPT.spawn(host, global_position + Vector2(randf_range(-30.0, 30.0), -50.0), amount)
+	var knock_dir := (global_position - attacker_position).normalized()
+	HIT_SPARKS_SCRIPT.spawn(host, global_position - knock_dir * 30.0, knock_dir)
+	if amount >= 30.0:
+		EventBus.camera_shake_requested.emit(4.0)
+	if amount >= 60.0:
+		GameManager.request_hitstop(0.05)
 
 func _on_died():
 	if GameManager.debug_mode:
