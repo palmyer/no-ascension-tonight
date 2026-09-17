@@ -21,7 +21,7 @@ const WEAPON_DEFINITIONS := {
 		"slash_time": 0.2,
 		"return_time": 0.5,
 		"range_multiplier": 1.0,
-		"visual_scale": Vector2(1.05, 1.05),
+		"visual_scale": Vector2(1, 1),
 		"texture": "res://assets/textures/weapons/weapon_sword.png",
 		"special": {
 			"name": "赤焰回环",
@@ -44,7 +44,7 @@ const WEAPON_DEFINITIONS := {
 		"slash_time": 0.17,
 		"return_time": 0.42,
 		"range_multiplier": 0.9,
-		"visual_scale": Vector2(0.95, 0.95),
+		"visual_scale": Vector2(1, 1),
 		"texture": "res://assets/textures/weapons/weapon_blade.png",
 		"special": {
 			"name": "腐心散",
@@ -68,7 +68,7 @@ const WEAPON_DEFINITIONS := {
 		"slash_time": 0.24,
 		"return_time": 0.55,
 		"range_multiplier": 1.25,
-		"visual_scale": Vector2(1.05, 1.05),
+		"visual_scale": Vector2(1, 1),
 		"texture": "res://assets/textures/weapons/weapon_spear.png",
 		"special": {
 			"name": "霜锋震",
@@ -90,7 +90,7 @@ const WEAPON_DEFINITIONS := {
 		"damage": 16.0,
 		"ranged_range": 760.0,
 		"ranged_cooldown": 0.8,
-		"visual_scale": Vector2(0.9, 0.9),
+		"visual_scale": Vector2(1, 1),
 		"texture": "res://assets/textures/weapons/sword_48.png",
 		"special": {
 			"name": "天雷引",

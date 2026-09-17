@@ -1,13 +1,18 @@
 extends CharacterBody2D
 class_name Player
 
-const MOVE_SPEED := 250.0
+const MOVE_SPEED := 280.0
 const WEAPON_RUNTIME_SCRIPT = preload("res://src/weapons/weapon_runtime.gd")
 const PROJECTILE_SCENE = preload("res://scenes/entities/projectiles/bullet.tscn")
 const SKILL_BURST_VISUAL = preload("res://src/effects/skill_burst_visual.gd")
 const BASE_ATTACK_RANGE := 1600.0
 
 var can_slash := true
+var sword_swinging := false
+var weapon_idle_time := 0.0
+var ranged_recoil_active := false
+# 武器无索敌目标时的默认休止方向：左下（挂点角，武器随挂点指向该方向）。
+const WEAPON_IDLE_ANGLE := PI * 3.0 / 4.0
 var touch_move_vector := Vector2.ZERO
 
 @export var slash_time: float = 0.2
@@ -57,6 +62,9 @@ var locked_target: Node2D
 var sword_base_position: Vector2
 var swing_extension_dir_local: Vector2 = Vector2.ZERO
 var swing_extension_amount: float = 0.0
+# 打击反馈：镜头震动。
+var player_camera: Camera2D
+var camera_shake_strength: float = 0.0
 
 func _ready() -> void:
 	add_to_group("Player")
@@ -68,14 +76,27 @@ func _ready() -> void:
 		health_component.died.connect(_on_died)
 		apply_runtime_stats(GameManager.current_stats)
 		_on_health_changed(health_component.current_health, health_component.max_health)
-	if sword_anim and not sword_anim.animation_finished.is_connected(_on_animation_player_animation_finished):
-		sword_anim.animation_finished.connect(_on_animation_player_animation_finished)
 	if sword_hitbox:
 		sword_hitbox.monitoring = false
 		sword_hitbox.body_entered.connect(_on_sword_hitbox_body_entered)
 	if sword_sprite:
 		sword_base_position = sword_sprite.position
 	$Sprite2D/WeaponPivot/WeaponVisual.show_behind_parent = false
+	player_camera = get_node_or_null("Camera2D")
+	EventBus.camera_shake_requested.connect(_on_camera_shake_requested)
+	EventBus.player_damaged.connect(_on_player_damaged_feedback)
+	EventBus.core_damaged.connect(_on_core_damaged_feedback)
+
+func _on_camera_shake_requested(strength: float) -> void:
+	camera_shake_strength = minf(camera_shake_strength + strength, 18.0)
+
+func _on_player_damaged_feedback(damage: float) -> void:
+	camera_shake_strength = minf(camera_shake_strength + clampf(5.0 + damage * 0.2, 5.0, 14.0), 18.0)
+	if damage >= 12.0:
+		GameManager.request_hitstop(0.07, 0.08)
+
+func _on_core_damaged_feedback(_damage: float, _current: float, _max: float) -> void:
+	camera_shake_strength = minf(camera_shake_strength + 6.0, 18.0)
 
 func _setup_health_bar() -> void:
 	health_bar = ProgressBar.new()
@@ -100,6 +121,15 @@ func _on_health_changed(new_health: float, max_health: float) -> void:
 	health_bar.value = new_health
 
 func _physics_process(delta: float) -> void:
+	weapon_idle_time += delta
+	# 镜头震动衰减：随机偏移随强度快速回落。
+	if player_camera:
+		if camera_shake_strength > 0.15:
+			player_camera.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * camera_shake_strength
+			camera_shake_strength = lerpf(camera_shake_strength, 0.0, minf(delta * 9.0, 1.0))
+		else:
+			camera_shake_strength = 0.0
+			player_camera.offset = Vector2.ZERO
 	special_cooldown_remaining = maxf(special_cooldown_remaining - delta, 0.0)
 	movement_since_attack += velocity.length() * delta
 	kill_streak_timer = maxf(kill_streak_timer - delta, 0.0)
@@ -122,6 +152,9 @@ func _physics_process(delta: float) -> void:
 
 	if weapon_runtime and weapon_runtime.is_ranged():
 		_process_ranged_attack(delta)
+		if not (target_enemy and is_instance_valid(target_enemy)) and sword_pivot:
+			sword_pivot.rotation = lerp_angle(sword_pivot.rotation, WEAPON_IDLE_ANGLE, minf(delta * 6.0, 1.0))
+		_update_sword_extension_visual()
 		queue_redraw()
 		return
 
@@ -133,9 +166,10 @@ func _physics_process(delta: float) -> void:
 		var attack_range: float = _get_attack_trigger_range() + _get_melee_range_bonus()
 		var target_radius: float = _get_target_trigger_radius(target_enemy)
 
+		# 挂点指向索敌目标；武器本体休止在目标反方向（例如目标在正上方时垂在正下方）。
+		if sword_pivot:
+			sword_pivot.look_at(target_enemy.global_position)
 		if dist <= attack_range + target_radius:
-			if sword_pivot:
-				sword_pivot.look_at(target_enemy.global_position)
 			if can_slash:
 				slash_hit_targets.clear()
 				slash_count += 1
@@ -148,11 +182,15 @@ func _physics_process(delta: float) -> void:
 				afterimage_anchor_ready = false
 				movement_since_attack = 0.0
 				_prepare_sword_range_extension()
-				if sword_hitbox:
-					sword_hitbox.monitoring = true
-				sword_anim.speed_scale = sword_anim.get_animation("slash").length / _get_attack_duration(slash_time)
-				sword_anim.play("slash")
-				can_slash = false
+				_start_swing()
+	elif sword_pivot:
+		# 无索敌目标（含目标死亡）：武器平滑回到左下休止位。
+		sword_pivot.rotation = lerp_angle(sword_pivot.rotation, WEAPON_IDLE_ANGLE, minf(delta * 6.0, 1.0))
+
+	# 非挥砍期间武器收敛到休止角：有目标时指向目标反方向，无目标时归零（挂点已在左下）。
+	if not sword_swinging and sword_sprite:
+		var rest_rotation := PI if (target_enemy and is_instance_valid(target_enemy)) else 0.0
+		sword_sprite.rotation = lerp_angle(sword_sprite.rotation, rest_rotation, minf(delta * 8.0, 1.0))
 
 	_update_sword_extension_visual()
 	if sword_hitbox and sword_hitbox.monitoring:
@@ -282,6 +320,12 @@ func _apply_starting_weapon() -> void:
 	var texture := weapon_runtime.get_visual_texture()
 	if texture:
 		sword_sprite.texture = texture
+	if sword_hitbox:
+		# 命中盒不跟随贴图缩放：贴图缩小到人形比例后反向补偿，
+		# 保持命中判定与触发范围仍是固定世界尺寸。
+		var compensate := Vector2.ONE / sword_sprite.scale
+		sword_hitbox.scale = compensate
+		sword_hitbox.position = Vector2(-24, -24) * compensate
 	weapon_damage = weapon_runtime.get_base_damage()
 	slash_time = weapon_runtime.get_slash_time()
 	sword_return_time = weapon_runtime.get_return_time()
@@ -303,8 +347,28 @@ func _process_ranged_attack(delta: float) -> void:
 		sword_pivot.look_at(target_enemy.global_position)
 	if ranged_attack_timer <= 0.0:
 		_fire_ranged_projectile(target_enemy)
+		_play_ranged_recoil()
 		var attack_speed_multiplier := _get_attack_speed_multiplier()
 		ranged_attack_timer = ranged_cooldown / attack_speed_multiplier
+
+func _play_ranged_recoil() -> void:
+	# 土豆兄弟式开火反馈：武器后坐回弹 + 短促放大 punch。
+	if not sword_sprite:
+		return
+	ranged_recoil_active = true
+	var recoil := create_tween()
+	recoil.finished.connect(func() -> void:
+		ranged_recoil_active = false)
+	recoil.set_parallel(true)
+	recoil.tween_property(sword_sprite, "position", sword_base_position + Vector2(-6, 2), 0.05) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	recoil.tween_property(sword_sprite, "scale", Vector2(1.25, 1.25), 0.05) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	recoil.chain().set_parallel(true)
+	recoil.tween_property(sword_sprite, "position", sword_base_position, 0.18) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	recoil.tween_property(sword_sprite, "scale", Vector2.ONE, 0.18) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 func _fire_ranged_projectile(target: Node2D) -> void:
 	var damage_multiplier := _get_damage_multiplier()
@@ -485,20 +549,64 @@ func _prepare_sword_range_extension() -> void:
 	swing_extension_dir_local = sword_pivot.global_transform.basis_xform_inv(target_dir_global).normalized()
 	swing_extension_amount = bonus
 
-func _update_sword_extension_visual() -> void:
-	if not sword_sprite or not sword_anim:
+func _start_swing() -> void:
+	# 土豆兄弟式三段挥砍：后坐蓄力 → 突刺命中（放大前冲）→ 平滑收回。
+	# 武器从目标反方向出发（例如目标在正上方时从正下方挥出），命中后收回反方向。
+	sword_swinging = true
+	can_slash = false
+	if not sword_sprite:
+		_on_swing_finished()
 		return
-	var t: float = 0.0
-	if sword_anim.current_animation == &"slash":
-		var slash_anim: Animation = sword_anim.get_animation("slash")
-		var slash_anim_len: float = slash_anim.length if slash_anim else 0.0
-		if slash_anim_len > 0.0:
-			var p: float = clamp(sword_anim.current_animation_position / slash_anim_len, 0.0, 1.0)
-			if p <= 0.5:
-				t = p * 2.0
-			else:
-				t = (1.0 - p) * 2.0
-	sword_sprite.position = sword_base_position + swing_extension_dir_local * swing_extension_amount * t
+	var swing_duration := _get_attack_duration(slash_time)
+	var windup_time := maxf(swing_duration * 0.35, 0.04)
+	var strike_time := maxf(swing_duration * 0.3, 0.05)
+	var strike_thrust := sword_base_position + swing_extension_dir_local * swing_extension_amount + Vector2(9.0, 0.0)
+	sword_sprite.rotation = PI
+
+	var swing := create_tween()
+	# 蓄力：武器略微后拉蓄势。
+	swing.tween_property(sword_sprite, "scale", Vector2(0.9, 0.9), windup_time) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	swing.parallel().tween_property(sword_sprite, "rotation", PI + 0.35, windup_time) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	# 突刺：快速扫向目标并放大命中，命中盒在突刺起点开启、终点关闭。
+	swing.tween_callback(func() -> void:
+		if sword_hitbox:
+			sword_hitbox.monitoring = true)
+	swing.tween_property(sword_sprite, "scale", Vector2(1.35, 1.35), strike_time) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	swing.parallel().tween_property(sword_sprite, "rotation", 0.0, strike_time) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	swing.parallel().tween_property(sword_sprite, "position", strike_thrust, strike_time) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	swing.tween_callback(func() -> void:
+		if sword_hitbox:
+			sword_hitbox.monitoring = false)
+	# 收回：回到目标反方向的休止角，尺寸与位置复位。
+	swing.tween_property(sword_sprite, "scale", Vector2.ONE, _get_attack_duration(sword_return_time)) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	swing.parallel().tween_property(sword_sprite, "rotation", PI, _get_attack_duration(sword_return_time)) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	swing.parallel().tween_property(sword_sprite, "position", sword_base_position, _get_attack_duration(sword_return_time)) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	swing.tween_callback(_on_swing_finished)
+
+func _on_swing_finished() -> void:
+	sword_swinging = false
+	can_slash = true
+	current_slash_is_sweep = false
+	current_attack_charged = false
+	_on_swing_finished_cleanup()
+
+func _update_sword_extension_visual() -> void:
+	if not sword_sprite:
+		return
+	if sword_swinging or ranged_recoil_active:
+		# 挥砍期间位置由三段动画 tween 控制；后坐期间由开火 tween 控制。
+		return
+	# 待机呼吸浮动 + 攻击范围加成的静态外伸。
+	var bob := Vector2(0.0, sin(weapon_idle_time * 3.2) * 1.2)
+	sword_sprite.position = sword_base_position + swing_extension_dir_local * swing_extension_amount + bob
 
 func _get_target_trigger_radius(target: Node2D) -> float:
 	var max_radius: float = 0.0
@@ -697,21 +805,12 @@ func _on_died() -> void:
 		EventBus.game_over.emit()
 	queue_free()
 
-func _on_animation_player_animation_finished(anim_name: StringName) -> void:
-	if anim_name == "slash":
-		if sword_hitbox:
-			sword_hitbox.monitoring = false
-		sword_anim.speed_scale = sword_anim.get_animation("sword_return").length / _get_attack_duration(sword_return_time)
-		sword_anim.play("sword_return")
-	else:
-		can_slash = true
-		current_slash_is_sweep = false
-		current_attack_charged = false
-		current_attack_momentum = false
-		current_attack_afterimage = false
-		afterimage_triggered = false
-		locked_target = null
-		if sword_sprite:
-			sword_sprite.position = sword_base_position
-		swing_extension_amount = 0.0
-		swing_extension_dir_local = Vector2.ZERO
+func _on_swing_finished_cleanup() -> void:
+	current_attack_momentum = false
+	current_attack_afterimage = false
+	afterimage_triggered = false
+	locked_target = null
+	if sword_sprite:
+		sword_sprite.position = sword_base_position
+	swing_extension_amount = 0.0
+	swing_extension_dir_local = Vector2.ZERO
